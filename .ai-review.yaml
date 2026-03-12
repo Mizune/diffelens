@@ -1,0 +1,61 @@
+# AI PR Review Configuration
+# このファイルをリポジトリルートに配置してください
+
+version: "1.0"
+
+global:
+  max_rounds: 3
+  language: "ja"
+  default_cli: "claude"     # "claude" or "codex"
+  timeout_ms: 120000        # 2分
+
+lenses:
+  readability:
+    enabled: true
+    cli: "claude"
+    model: "claude-haiku-4-5-20251001"
+    isolation: "tempdir"     # diffのみ渡す（リポジトリ探索不可）
+    max_turns: 1
+    tool_policy: "none"      # ツールなし
+    timeout_ms: 60000        # 1分
+    severity_cap: "warning"  # readabilityではblockerを出さない
+
+  structural:
+    enabled: true
+    cli: "claude"
+    model: "claude-sonnet-4-20250514"
+    isolation: "repo"        # リポジトリ内で実行（探索可能）
+    max_turns: 10
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+    timeout_ms: 180000       # 3分
+    severity_cap: "blocker"
+
+  bug_risk:
+    enabled: true
+    cli: "claude"            # "codex" に変更してo3を使うことも可能
+    model: "claude-sonnet-4-20250514"
+    isolation: "repo"
+    max_turns: 8
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+    timeout_ms: 180000
+    severity_cap: "blocker"
+
+filters:
+  exclude_patterns:
+    - "**/*.generated.*"
+    - "**/*.g.dart"
+    - "**/build/**"
+    - "**/dist/**"
+    - "**/*.min.js"
+    - "**/*.lock"
+    - "**/node_modules/**"
+
+convergence:
+  round_1_severities: ["blocker", "warning", "nitpick"]
+  round_2_severities: ["blocker", "warning"]
+  round_3_severities: ["blocker"]
+  approve_condition: "zero_blockers"
