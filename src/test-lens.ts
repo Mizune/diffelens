@@ -1,0 +1,107 @@
+import { execSync } from "child_process";
+import { loadConfig } from "./config.js";
+import { runLens } from "./lens-runner.js";
+import { loadOrCreateState } from "./state/review-state.js";
+import { renderSummary } from "./output/summary-renderer.js";
+
+// ============================================================
+// 単一レンズのテスト実行
+// Usage: npx tsx src/test-lens.ts readability
+//   (PR_NUMBER, BASE_SHA, HEAD_SHA を環境変数で渡すか、
+//    gh cli で自動取得)
+// ============================================================
+
+async function main() {
+  const lensName = process.argv[2];
+  if (!lensName) {
+    console.error("Usage: tsx src/test-lens.ts <lens_name>");
+    console.error("  e.g.: tsx src/test-lens.ts readability");
+    process.exit(1);
+  }
+
+  const configPath = process.env.CONFIG_PATH ?? ".ai-review.yaml";
+  const config = await loadConfig(configPath);
+
+  const lens = config.lenses.find((l) => l.name === lensName);
+  if (!lens) {
+    console.error(
+      `Lens "${lensName}" not found. Available: ${config.lenses.map((l) => l.name).join(", ")}`
+    );
+    process.exit(1);
+  }
+
+  // PR情報（環境変数 or gh cli）
+  const prNumber = parseInt(
+    process.env.PR_NUMBER ??
+      execSync("gh pr view --json number -q .number", {
+        encoding: "utf-8",
+      }).trim()
+  );
+
+  const baseSha =
+    process.env.BASE_SHA ??
+    execSync("gh pr view --json baseRefOid -q .baseRefOid", {
+      encoding: "utf-8",
+    }).trim();
+
+  const headSha =
+    process.env.HEAD_SHA ??
+    execSync("gh pr view --json headRefOid -q .headRefOid", {
+      encoding: "utf-8",
+    }).trim();
+
+  console.log(`PR: #${prNumber}`);
+  console.log(`Base: ${baseSha.slice(0, 7)}`);
+  console.log(`Head: ${headSha.slice(0, 7)}`);
+  console.log(`Lens: ${lensName} (${lens.cli} / ${lens.model})\n`);
+
+  // diff取得
+  const diff = execSync(`git diff ${baseSha}...${headSha}`, {
+    encoding: "utf-8",
+    maxBuffer: 5 * 1024 * 1024,
+  });
+  console.log(`Diff: ${diff.length} chars\n`);
+
+  // state
+  const state = await loadOrCreateState(
+    prNumber,
+    baseSha,
+    headSha,
+    config.global.max_rounds
+  );
+
+  // 実行
+  const result = await runLens(lens, diff, state, process.cwd());
+
+  console.log("\n--- Result ---");
+  console.log(`Success: ${result.success}`);
+  console.log(`Duration: ${result.durationMs}ms`);
+  console.log(`Findings: ${result.output?.findings.length ?? 0}`);
+  console.log(
+    `Assessment: ${result.output?.overall_assessment ?? "N/A"}`
+  );
+
+  if (result.output?.findings.length) {
+    console.log("\n--- Findings ---");
+    for (const f of result.output.findings) {
+      console.log(
+        `  [${f.severity}] ${f.file}:${f.line_start} — ${f.summary}`
+      );
+      if (f.suggestion) console.log(`    💡 ${f.suggestion}`);
+    }
+  }
+
+  if (result.error) {
+    console.log("\n--- Error ---");
+    console.log(result.error);
+  }
+
+  if (result.output?.explored_files?.length) {
+    console.log("\n--- Explored Files ---");
+    for (const f of result.output.explored_files) {
+      console.log(`  ${f}`);
+    }
+  }
+}
+
+main().catch(console.error);
