@@ -1,0 +1,51 @@
+name: AI Review Commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  handle-command:
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/ai-review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download review state
+        uses: actions/download-artifact@v4
+        with:
+          name: review-state-pr-${{ github.event.issue.number }}
+          path: .ai-review-state/
+        continue-on-error: true
+
+      - name: Handle command
+        run: npx tsx src/handle-command.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMAND_BODY: ${{ github.event.comment.body }}
+          COMMAND_USER: ${{ github.event.comment.user.login }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+
+      - name: Upload review state
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-state-pr-${{ github.event.issue.number }}
+          path: .ai-review-state/
+          overwrite: true

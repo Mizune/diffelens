@@ -1,0 +1,63 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Claude Code CLIのインストール
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      # Codex CLIのインストール（Codexを使うレンズがある場合のみ）
+      # - name: Install Codex CLI
+      #   run: npm install -g @openai/codex
+
+      - name: Install orchestrator dependencies
+        run: npm ci
+
+      # 前ラウンドのstateを復元
+      - name: Download review state
+        uses: actions/download-artifact@v4
+        with:
+          name: review-state-pr-${{ github.event.pull_request.number }}
+          path: .ai-review-state/
+        continue-on-error: true
+
+      # レビュー実行
+      - name: Run AI Review
+        run: npx tsx src/main.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
+
+      # stateを保存（次ラウンドで使用）
+      - name: Upload review state
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-state-pr-${{ github.event.pull_request.number }}
+          path: .ai-review-state/
+          overwrite: true
