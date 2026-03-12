@@ -180,21 +180,35 @@ async function main() {
 }
 
 /**
- * unified diff を解析し、exclude_patterns にマッチするファイルのハンクを除外する。
- * パターンは minimatch 互換の簡易グロブ（** を .* に展開）で評価する。
+ * グロブパターンを正規表現に変換する。
+ * `**\/` は「任意のディレクトリプレフィックス（空を含む）」として扱う。
  */
-function filterDiffByExcludePatterns(diff: string, patterns: string[]): string {
+export function globToRegex(pattern: string): RegExp {
+  // 1. **/ と ** をトークンに置換（\x00, \x01 は入力に出現しない制御文字）
+  let result = pattern
+    .replace(/\*\*\//g, "\x00")
+    .replace(/\*\*/g, "\x01");
+
+  // 2. 正規表現メタ文字をエスケープ（* と ? はグロブ用に残す）
+  result = result.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+
+  // 3. グロブ → 正規表現
+  result = result
+    .replace(/\*/g, "[^/]*")
+    .replace(/\?/g, "[^/]")
+    .replace(/\x00/g, "(.+/)?")
+    .replace(/\x01/g, ".*");
+
+  return new RegExp(`^${result}$`);
+}
+
+/**
+ * unified diff を解析し、exclude_patterns にマッチするファイルのハンクを除外する。
+ */
+export function filterDiffByExcludePatterns(diff: string, patterns: string[]): string {
   if (patterns.length === 0) return diff;
 
-  const regexes = patterns.map((p) => {
-    const escaped = p
-      .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-      .replace(/\*\*/g, "{{GLOBSTAR}}")
-      .replace(/\*/g, "[^/]*")
-      .replace(/\?/g, "[^/]")
-      .replace(/\{\{GLOBSTAR\}\}/g, ".*");
-    return new RegExp(`^${escaped}$`);
-  });
+  const regexes = patterns.map(globToRegex);
 
   const shouldExclude = (filePath: string): boolean =>
     regexes.some((re) => re.test(filePath));
@@ -211,7 +225,14 @@ function filterDiffByExcludePatterns(diff: string, patterns: string[]): string {
   return kept.join("");
 }
 
-main().catch((err) => {
-  console.error("AI Review failed:", err);
-  process.exit(1);
-});
+// ESM では import.meta.url がエントリポイントかどうかで自動実行を制御
+const isEntryPoint =
+  process.argv[1] &&
+  import.meta.url.endsWith(process.argv[1].replace(/.*\//, ""));
+
+if (isEntryPoint) {
+  main().catch((err) => {
+    console.error("AI Review failed:", err);
+    process.exit(1);
+  });
+}
