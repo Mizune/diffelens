@@ -3,6 +3,12 @@
 // CLIRequest / CLIResponse でCLI差分を吸収する
 // ============================================================
 
+/** CLI出力バッファの上限 (10MB) */
+export const MAX_BUFFER_BYTES = 10 * 1024 * 1024;
+
+/** 書き込み権限が必要なツール名 */
+export const WRITE_CAPABLE_TOOLS = ["Write", "Edit", "Bash"] as const;
+
 /** レンズからCLI実行に渡すリクエスト */
 export interface CLIRequest {
   /** レンズのシステムプロンプト（ファイルパス） */

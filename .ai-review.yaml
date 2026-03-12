@@ -13,35 +13,35 @@ lenses:
   readability:
     enabled: true
     cli: "claude"
-    model: "claude-haiku-4-5-20251001"
+    model: "claude-sonnet-4-6"
     isolation: "tempdir"     # diffのみ渡す（リポジトリ探索不可）
     max_turns: 1
     tool_policy: "none"      # ツールなし
-    timeout_ms: 60000        # 1分
+    timeout_ms: 300000       # 5分
     severity_cap: "warning"  # readabilityではblockerを出さない
 
   structural:
     enabled: true
     cli: "claude"
-    model: "claude-sonnet-4-20250514"
+    model: "claude-opus-4-6"
     isolation: "repo"        # リポジトリ内で実行（探索可能）
     max_turns: 10
     tool_policy:
       type: "explicit"
       tools: ["Read", "Grep", "Glob"]
-    timeout_ms: 180000       # 3分
+    timeout_ms: 600000       # 10分
     severity_cap: "blocker"
 
   bug_risk:
     enabled: true
-    cli: "claude"            # "codex" に変更してo3を使うことも可能
-    model: "claude-sonnet-4-20250514"
+    cli: "claude"
+    model: "claude-opus-4-6"
     isolation: "repo"
     max_turns: 8
     tool_policy:
       type: "explicit"
       tools: ["Read", "Grep", "Glob"]
-    timeout_ms: 180000
+    timeout_ms: 600000       # 10分
     severity_cap: "blocker"
 
 filters:

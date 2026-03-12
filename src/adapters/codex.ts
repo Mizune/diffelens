@@ -1,4 +1,4 @@
-import { execFile } from "child_process";
+import { spawn, execFile } from "child_process";
 import { promisify } from "util";
 import { readFile } from "fs/promises";
 import type {
@@ -8,15 +8,16 @@ import type {
   LensOutput,
   ToolPolicy,
 } from "./types.js";
+import { MAX_BUFFER_BYTES, WRITE_CAPABLE_TOOLS } from "./types.js";
 
-const exec = promisify(execFile);
+const execAsync = promisify(execFile);
 
 export class CodexAdapter implements CLIAdapter {
   readonly name = "codex";
 
   async isAvailable(): Promise<boolean> {
     try {
-      await exec("codex", ["--version"]);
+      await execAsync("codex", ["--version"]);
       return true;
     } catch {
       return false;
@@ -24,39 +25,63 @@ export class CodexAdapter implements CLIAdapter {
   }
 
   async execute(request: CLIRequest): Promise<CLIResponse> {
-    const args = await this.buildArgs(request);
+    const { args, fullPrompt } = await this.buildArgs(request);
     const start = Date.now();
 
-    try {
-      const { stdout, stderr } = await exec("codex", args, {
+    return new Promise((resolve) => {
+      const child = spawn("codex", args, {
         cwd: request.cwd,
-        timeout: request.timeoutMs,
         env: { ...process.env },
-        maxBuffer: 10 * 1024 * 1024,
+        stdio: ["pipe", "pipe", "pipe"],
       });
 
-      return {
-        parsed: this.parseOutput(stdout),
-        rawStdout: stdout,
-        rawStderr: stderr,
-        exitCode: 0,
-        durationMs: Date.now() - start,
-      };
-    } catch (error: any) {
-      return {
-        parsed: this.parseOutput(error.stdout ?? ""),
-        rawStdout: error.stdout ?? "",
-        rawStderr: error.stderr ?? "",
-        exitCode: error.code ?? 1,
-        durationMs: Date.now() - start,
-      };
-    }
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      const timer = setTimeout(() => {
+        child.kill("SIGTERM");
+      }, request.timeoutMs);
+
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        resolve({
+          parsed: this.parseOutput(stdout),
+          rawStdout: stdout,
+          rawStderr: stderr,
+          exitCode: typeof code === "number" ? code : 1,
+          durationMs: Date.now() - start,
+        });
+      });
+
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        resolve({
+          parsed: null,
+          rawStdout: stdout,
+          rawStderr: err.message,
+          exitCode: 1,
+          durationMs: Date.now() - start,
+        });
+      });
+
+      // プロンプトを stdin 経由で送信（ARG_MAX 制限を回避）
+      child.stdin.write(fullPrompt);
+      child.stdin.end();
+    });
   }
 
-  private async buildArgs(request: CLIRequest): Promise<string[]> {
+  private async buildArgs(
+    request: CLIRequest
+  ): Promise<{ args: string[]; fullPrompt: string }> {
     // Codex にはシステムプロンプト用フラグがないのでプロンプトに埋め込む
     const systemPrompt = await readFile(request.systemPromptPath, "utf-8");
-
     const fullPrompt = [systemPrompt, "", request.userPrompt].join("\n");
 
     const args: string[] = [
@@ -66,10 +91,9 @@ export class CodexAdapter implements CLIAdapter {
       "--json",
       "--sandbox",
       this.mapToolPolicy(request.toolPolicy),
-      fullPrompt,
     ];
 
-    return args;
+    return { args, fullPrompt };
   }
 
   private mapToolPolicy(policy: ToolPolicy): string {
@@ -79,7 +103,9 @@ export class CodexAdapter implements CLIAdapter {
       case "read_only":
         return "read-only";
       case "explicit":
-        if (policy.tools.some((t) => t === "Write" || t.startsWith("Bash"))) {
+        if (policy.tools.some((t) =>
+          WRITE_CAPABLE_TOOLS.some((w) => t === w || t.startsWith(`${w}(`))
+        )) {
           return "workspace-write";
         }
         return "workspace-read";
@@ -90,6 +116,7 @@ export class CodexAdapter implements CLIAdapter {
     try {
       // Codex --json は JSONL (1行1イベント)
       const lines = stdout.trim().split("\n").filter(Boolean);
+      if (lines.length === 0) return null;
 
       for (const line of lines.reverse()) {
         try {

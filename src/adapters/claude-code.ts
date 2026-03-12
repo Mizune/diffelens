@@ -1,5 +1,6 @@
-import { execFile } from "child_process";
+import { spawn, execFile } from "child_process";
 import { promisify } from "util";
+import { readFile } from "fs/promises";
 import type {
   CLIAdapter,
   CLIRequest,
@@ -8,14 +9,14 @@ import type {
   ToolPolicy,
 } from "./types.js";
 
-const exec = promisify(execFile);
+const execAsync = promisify(execFile);
 
 export class ClaudeCodeAdapter implements CLIAdapter {
-  readonly name = "claude-code";
+  readonly name = "claude";
 
   async isAvailable(): Promise<boolean> {
     try {
-      await exec("claude", ["--version"]);
+      await execAsync("claude", ["--version"]);
       return true;
     } catch {
       return false;
@@ -23,50 +24,73 @@ export class ClaudeCodeAdapter implements CLIAdapter {
   }
 
   async execute(request: CLIRequest): Promise<CLIResponse> {
-    const args = this.buildArgs(request);
+    const args = await this.buildArgs(request);
     const start = Date.now();
 
-    try {
-      const { stdout, stderr } = await exec("claude", args, {
+    return new Promise((resolve) => {
+      const child = spawn("claude", args, {
         cwd: request.cwd,
-        timeout: request.timeoutMs,
-        env: { ...process.env },
-        maxBuffer: 10 * 1024 * 1024,
+        env: { ...process.env, CLAUDECODE: "" },
+        stdio: ["pipe", "pipe", "pipe"],
       });
 
-      return {
-        parsed: this.parseOutput(stdout),
-        rawStdout: stdout,
-        rawStderr: stderr,
-        exitCode: 0,
-        durationMs: Date.now() - start,
-      };
-    } catch (error: any) {
-      return {
-        parsed: this.parseOutput(error.stdout ?? ""),
-        rawStdout: error.stdout ?? "",
-        rawStderr: error.stderr ?? "",
-        exitCode: error.code ?? 1,
-        durationMs: Date.now() - start,
-      };
-    }
+      let stdout = "";
+      let stderr = "";
+
+      child.stdout.on("data", (data) => {
+        stdout += data.toString();
+      });
+      child.stderr.on("data", (data) => {
+        stderr += data.toString();
+      });
+
+      const timer = setTimeout(() => {
+        child.kill("SIGTERM");
+      }, request.timeoutMs);
+
+      child.on("close", (code) => {
+        clearTimeout(timer);
+        resolve({
+          parsed: this.parseOutput(stdout),
+          rawStdout: stdout,
+          rawStderr: stderr,
+          exitCode: typeof code === "number" ? code : 1,
+          durationMs: Date.now() - start,
+        });
+      });
+
+      child.on("error", (err) => {
+        clearTimeout(timer);
+        resolve({
+          parsed: null,
+          rawStdout: stdout,
+          rawStderr: err.message,
+          exitCode: 1,
+          durationMs: Date.now() - start,
+        });
+      });
+
+      // プロンプトを stdin 経由で送信（ARG_MAX 制限を回避）
+      child.stdin.write(request.userPrompt);
+      child.stdin.end();
+    });
   }
 
-  private buildArgs(request: CLIRequest): string[] {
+  private async buildArgs(request: CLIRequest): Promise<string[]> {
+    const systemPrompt = await readFile(request.systemPromptPath, "utf-8");
+
     const args: string[] = [
       "-p",
       "--output-format",
       "json",
       "--model",
       request.model,
-      "--max-turns",
-      String(request.maxTurns),
       "--system-prompt",
-      request.systemPromptPath,
+      systemPrompt,
+      "--no-session-persistence",
     ];
 
     args.push(...this.mapToolPolicy(request.toolPolicy));
-    args.push(request.userPrompt);
 
     return args;
   }
@@ -74,8 +98,7 @@ export class ClaudeCodeAdapter implements CLIAdapter {
   private mapToolPolicy(policy: ToolPolicy): string[] {
     switch (policy.type) {
       case "none":
-        // ツール完全無効化
-        return ["--allowedTools", ""];
+        return ["--tools", ""];
       case "read_only":
         return ["--allowedTools", "Read"];
       case "explicit":
@@ -107,8 +130,9 @@ export class ClaudeCodeAdapter implements CLIAdapter {
     }
   }
 
+  /** JSON出力が前後に余分なテキストを含む場合のフォールバック: findingsキーを持つオブジェクトを抽出 */
   private extractJsonFromText(text: string): LensOutput | null {
-    const jsonMatch = text.match(/\{[\s\S]*"findings"[\s\S]*\}/);
+    const jsonMatch = text.match(/\{[\s\S]*?"findings"[\s\S]*?\}(?=\s*$)/);
     if (jsonMatch) {
       try {
         return JSON.parse(jsonMatch[0]);
