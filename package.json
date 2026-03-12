@@ -1,0 +1,26 @@
+{
+  "name": "diffelens",
+  "version": "0.1.0",
+  "description": "Multi-lens AI PR review orchestrator using Claude Code / Codex CLI",
+  "type": "module",
+  "scripts": {
+    "review": "tsx src/main.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:readability": "tsx src/test-lens.ts readability",
+    "test:structural": "tsx src/test-lens.ts structural",
+    "test:bug-risk": "tsx src/test-lens.ts bug_risk",
+    "build": "tsc",
+    "lint": "eslint src/"
+  },
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.18"
+  }
+}
