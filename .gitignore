@@ -1,3 +1,9 @@
 node_modules/
 dist/
 .ai-review-state/
+.env*
+*.log
+.DS_Store
+coverage/
+.vscode/
+.idea/

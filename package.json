@@ -3,6 +3,36 @@
   "version": "0.1.0",
   "description": "Multi-lens AI PR review orchestrator using Claude Code / Codex CLI",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mizune/diffelens.git"
+  },
+  "homepage": "https://github.com/Mizune/diffelens",
+  "keywords": [
+    "ai",
+    "code-review",
+    "pr-review",
+    "claude",
+    "multi-lens",
+    "github-actions"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "diffelens": "./dist/main.js"
+  },
+  "files": [
+    "dist/",
+    "!dist/__tests__/",
+    "!dist/test-lens.*",
+    "!dist/handle-command.*",
+    "prompts/",
+    "README.md",
+    "LICENSE",
+    ".ai-review.yaml"
+  ],
   "scripts": {
     "review": "tsx src/main.ts",
     "test": "vitest run",
@@ -19,8 +49,10 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "eslint": "^9.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
+    "typescript-eslint": "^8.0.0",
     "vitest": "^4.0.18"
   }
 }
