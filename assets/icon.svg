@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Dark background -->
+  <rect width="200" height="200" fill="#0C0C0C" rx="24"/>
+
+  <!-- Three lenses: slight offset, screen blend = chromatic aberration -->
+  <circle cx="100" cy="94"  r="68" fill="#00D4FF" opacity="0.7" style="mix-blend-mode:screen"/>
+  <circle cx="94"  cy="103" r="68" fill="#8B5CF6" opacity="0.7" style="mix-blend-mode:screen"/>
+  <circle cx="106" cy="103" r="68" fill="#F59E0B" opacity="0.7" style="mix-blend-mode:screen"/>
+</svg>

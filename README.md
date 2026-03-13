@@ -1,8 +1,14 @@
-# diffelens
+<p align="center">
+  <img src="assets/logo.svg" alt="diffelens" width="400">
+</p>
+
+<p align="center">
 
 [![CI](https://github.com/Mizune/diffelens/actions/workflows/ci.yml/badge.svg)](https://github.com/Mizune/diffelens/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/diffelens)](https://www.npmjs.com/package/diffelens)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+</p>
 
 Multi-lens AI PR review orchestrator using Claude Code CLI / Codex CLI.
 

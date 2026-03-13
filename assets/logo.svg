@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">
+  <!-- Three lenses: chromatic aberration on transparent bg -->
+  <circle cx="60" cy="54" r="48" fill="#00D4FF" opacity="0.5"/>
+  <circle cx="55" cy="62" r="48" fill="#8B5CF6" opacity="0.5"/>
+  <circle cx="65" cy="62" r="48" fill="#F59E0B" opacity="0.5"/>
+
+  <!-- "diffelens" in monospace -->
+  <text x="132" y="70"
+        font-family="'IBM Plex Mono','JetBrains Mono','SF Mono',monospace"
+        font-size="36" font-weight="100" letter-spacing="1"
+        fill="#475569">diffelens</text>
+</svg>
