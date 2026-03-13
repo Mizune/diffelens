@@ -71,7 +71,7 @@ export class CodexAdapter implements CLIAdapter {
         });
       });
 
-      // プロンプトを stdin 経由で送信（ARG_MAX 制限を回避）
+      // Send prompt via stdin (to avoid ARG_MAX limit)
       child.stdin.write(fullPrompt);
       child.stdin.end();
     });
@@ -80,7 +80,7 @@ export class CodexAdapter implements CLIAdapter {
   private async buildArgs(
     request: CLIRequest
   ): Promise<{ args: string[]; fullPrompt: string }> {
-    // Codex にはシステムプロンプト用フラグがないのでプロンプトに埋め込む
+    // Codex has no system prompt flag, so embed it in the prompt
     const systemPrompt = await readFile(request.systemPromptPath, "utf-8");
     const fullPrompt = [systemPrompt, "", request.userPrompt].join("\n");
 
@@ -114,7 +114,7 @@ export class CodexAdapter implements CLIAdapter {
 
   private parseOutput(stdout: string): LensOutput | null {
     try {
-      // Codex --json は JSONL (1行1イベント)
+      // Codex --json outputs JSONL (one event per line)
       const lines = stdout.trim().split("\n").filter(Boolean);
       if (lines.length === 0) return null;
 
@@ -150,7 +150,7 @@ export class CodexAdapter implements CLIAdapter {
         ? event.output
         : JSON.stringify(event.output);
     }
-    // codex exec の最終出力形式に対応
+    // Handle codex exec final output format
     if (typeof event === "string") return event;
     return null;
   }

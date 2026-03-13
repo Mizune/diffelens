@@ -3,7 +3,7 @@ import type { ConvergenceConfig } from "./config.js";
 import type { Finding } from "./adapters/types.js";
 
 // ============================================================
-// 収束判定: blocker 0 → approve, max_rounds超過 → escalate
+// Convergence: 0 blockers -> approve, max_rounds exceeded -> escalate
 // ============================================================
 
 export type ReviewDecision = "approve" | "request_changes" | "escalate";
@@ -16,12 +16,12 @@ export function checkConvergence(
   const blockers = openFindings.filter((f) => f.severity === "blocker");
   const warnings = openFindings.filter((f) => f.severity === "warning");
 
-  // ラウンド上限
+  // Round limit
   if (state.current_round >= state.max_rounds && blockers.length > 0) {
     return "escalate";
   }
 
-  // 完了条件
+  // Approval condition
   if (convergence.approve_condition === "zero_blockers") {
     if (blockers.length === 0) return "approve";
   } else if (convergence.approve_condition === "zero_blockers_and_warnings") {
@@ -32,8 +32,8 @@ export function checkConvergence(
 }
 
 /**
- * ラウンドに応じたseverityフィルタ
- * Round 1: 全severity, Round 2: blocker+warning, Round 3: blockerのみ
+ * Severity filter based on round.
+ * Round 1: all severities, Round 2: blocker+warning, Round 3: blocker only
  */
 export function filterBySeverityForRound(
   findings: Finding[],

@@ -2,14 +2,15 @@ import type { ReviewState, StateFinding } from "../state/review-state.js";
 import type { ReviewDecision } from "../convergence.js";
 
 // ============================================================
-// PRに投稿するMarkdownサマリーを生成
+// Generate Markdown summary for posting to PR
 // ============================================================
 
 const MARKER = "<!-- ai-review-summary -->";
 
 export function renderSummary(
   state: ReviewState,
-  decision: ReviewDecision
+  decision: ReviewDecision,
+  mode: "github" | "local" = "github"
 ): string {
   const open = state.findings.filter((f) => f.status === "open");
   const blockers = open.filter((f) => f.severity === "blocker");
@@ -21,7 +22,7 @@ export function renderSummary(
     decision === "approve"
       ? "✅ APPROVED"
       : decision === "escalate"
-        ? "🚨 ESCALATED (人間のレビューが必要)"
+        ? "🚨 ESCALATED (human review required)"
         : "🔄 CHANGES REQUESTED";
 
   const lines: string[] = [
@@ -53,7 +54,7 @@ export function renderSummary(
       "---",
       "",
       `### 🟡 Warnings`,
-      `<details><summary>展開 (${warnings.length}件)</summary>`,
+      `<details><summary>Expand (${warnings.length})</summary>`,
       ""
     );
     for (const f of warnings) {
@@ -68,7 +69,7 @@ export function renderSummary(
       "---",
       "",
       `### 💬 Nitpicks`,
-      `<details><summary>展開 (${nitpicks.length}件)</summary>`,
+      `<details><summary>Expand (${nitpicks.length})</summary>`,
       ""
     );
     for (const f of nitpicks) {
@@ -83,7 +84,7 @@ export function renderSummary(
       "---",
       "",
       `### ✅ Resolved`,
-      `<details><summary>展開 (${resolved.length}件)</summary>`,
+      `<details><summary>Expand (${resolved.length})</summary>`,
       ""
     );
     for (const f of resolved) {
@@ -97,14 +98,23 @@ export function renderSummary(
   }
 
   // Footer
-  lines.push(
-    "---",
-    "<sub>",
-    `💬 指摘を却下: <code>/ai-review dismiss {id} {reason}</code>`,
-    "<br>",
-    `🔄 再レビュー: 新しいcommitをpushすると自動実行`,
-    "</sub>"
-  );
+  if (mode === "local") {
+    lines.push(
+      "---",
+      "<sub>",
+      `🔄 Re-run to check convergence after fixing issues`,
+      "</sub>"
+    );
+  } else {
+    lines.push(
+      "---",
+      "<sub>",
+      `💬 Dismiss a finding: <code>/ai-review dismiss {id} {reason}</code>`,
+      "<br>",
+      `🔄 Re-review: automatically triggered on new commits`,
+      "</sub>"
+    );
+  }
 
   return lines.join("\n");
 }
@@ -127,7 +137,7 @@ function renderFinding(f: StateFinding, currentRound: number): string[] {
   const lensLabel = f.lens ?? "unknown";
   const roundLabel =
     f.first_raised_round < currentRound
-      ? `Round ${f.first_raised_round} から継続`
+      ? `Carried from Round ${f.first_raised_round}`
       : `New`;
 
   lines.push(`  > 🔍 Lens: \`${lensLabel}\` / ${roundLabel}`);
@@ -136,5 +146,5 @@ function renderFinding(f: StateFinding, currentRound: number): string[] {
   return lines;
 }
 
-/** サマリーコメントを識別するマーカー */
+/** Marker to identify the summary comment */
 export { MARKER };

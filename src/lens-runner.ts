@@ -5,9 +5,10 @@ import { getAdapter } from "./adapters/index.js";
 import type { CLIRequest, LensOutput, Finding } from "./adapters/index.js";
 import type { LensConfig } from "./config.js";
 import type { ReviewState } from "./state/review-state.js";
+import { SEVERITY_RANK } from "./severity.js";
 
 // ============================================================
-// レンズ実行: LensConfig → CLIAdapter → LensRunResult
+// Lens Execution: LensConfig -> CLIAdapter -> LensRunResult
 // ============================================================
 
 export interface LensRunResult {
@@ -23,16 +24,18 @@ export async function runLens(
   config: LensConfig,
   diff: string,
   state: ReviewState,
-  repoRoot: string
+  repoRoot: string,
+  promptsRoot?: string,
+  projectContext?: string
 ): Promise<LensRunResult> {
   const adapter = await getAdapter(config.cli);
 
-  // 実行ディレクトリの決定
+  // Determine working directory
   let cwd: string;
   let tempDir: string | null = null;
 
   if (config.isolation === "tempdir") {
-    // Readability: diffだけの一時ディレクトリで実行
+    // Readability: run in a temp directory with only the diff
     tempDir = await mkdtemp(join(tmpdir(), "ai-review-"));
     await writeFile(join(tempDir, "diff.patch"), diff);
     cwd = tempDir;
@@ -41,10 +44,10 @@ export async function runLens(
   }
 
   try {
-    const userPrompt = buildUserPrompt(config.name, diff, state);
+    const userPrompt = buildUserPrompt(config.name, diff, state, projectContext ?? "");
 
     const request: CLIRequest = {
-      systemPromptPath: join(repoRoot, config.promptFile),
+      systemPromptPath: join(promptsRoot ?? repoRoot, config.promptFile),
       userPrompt,
       cwd,
       toolPolicy: config.toolPolicy,
@@ -76,7 +79,7 @@ export async function runLens(
       };
     }
 
-    // findings にレンズ名を付与 + severityCap を適用
+    // Attach lens name to findings + apply severityCap
     const output = applySeverityCap(response.parsed, config);
 
     return {
@@ -93,14 +96,8 @@ export async function runLens(
   }
 }
 
-const SEVERITY_RANK: Record<string, number> = {
-  nitpick: 1,
-  warning: 2,
-  blocker: 3,
-};
-
 /**
- * レンズの severityCap を超える severity のfindingsをダウングレードし、レンズ名を付与する。
+ * Downgrade findings that exceed the lens severityCap and attach the lens name.
  */
 function applySeverityCap(
   parsed: LensOutput | null,
@@ -127,7 +124,8 @@ function applySeverityCap(
 function buildUserPrompt(
   lensName: string,
   diff: string,
-  state: ReviewState
+  state: ReviewState,
+  projectContext: string
 ): string {
   const stateJson = JSON.stringify(
     {
@@ -139,15 +137,24 @@ function buildUserPrompt(
     2
   );
 
-  return [
-    `以下のdiffを${lensName}の観点でレビューしてください。`,
-    `出力はシステムプロンプトで指定されたJSON形式のみで返してください。`,
-    `マークダウンのコードフェンスで囲まず、JSON本体だけを出力してください。`,
+  const parts = [
+    `Review the following diff from the ${lensName} perspective.`,
+    `Output ONLY the JSON format specified in the system prompt.`,
+    `Do not wrap in markdown code fences — return the raw JSON body only.`,
     ``,
-    `## 前ラウンドの状態`,
+  ];
+
+  if (projectContext) {
+    parts.push(projectContext, ``);
+  }
+
+  parts.push(
+    `## Previous Round State`,
     stateJson,
     ``,
     `## Diff`,
-    diff,
-  ].join("\n");
+    diff
+  );
+
+  return parts.join("\n");
 }

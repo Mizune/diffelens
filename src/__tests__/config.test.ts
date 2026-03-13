@@ -9,7 +9,7 @@ describe("loadConfig", () => {
     const config = await loadConfig(configPath);
 
     expect(config.global.max_rounds).toBe(3);
-    expect(config.global.language).toBe("ja");
+    expect(config.global.language).toBe("en");
     expect(config.global.default_cli).toBe("claude");
   });
 
@@ -19,7 +19,7 @@ describe("loadConfig", () => {
     expect(config.lenses).toHaveLength(3);
     const names = config.lenses.map((l) => l.name);
     expect(names).toContain("readability");
-    expect(names).toContain("structural");
+    expect(names).toContain("architectural");
     expect(names).toContain("bug_risk");
   });
 
@@ -34,8 +34,8 @@ describe("loadConfig", () => {
     const readability = config.lenses.find((l) => l.name === "readability");
     expect(readability?.toolPolicy).toEqual({ type: "none" });
 
-    const structural = config.lenses.find((l) => l.name === "structural");
-    expect(structural?.toolPolicy).toEqual({
+    const architectural = config.lenses.find((l) => l.name === "architectural");
+    expect(architectural?.toolPolicy).toEqual({
       type: "explicit",
       tools: ["Read", "Grep", "Glob"],
     });

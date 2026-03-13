@@ -9,7 +9,7 @@ const adapterFactories: Record<CLIName, () => CLIAdapter> = {
   codex: () => new CodexAdapter(),
 };
 
-/** アダプターを取得。利用可能かチェックしてから返す */
+/** Get adapter. Checks availability before returning. */
 export async function getAdapter(name: CLIName): Promise<CLIAdapter> {
   const factory = adapterFactories[name];
   if (!factory) {
@@ -39,7 +39,7 @@ function getInstallHint(name: CLIName): string {
   }
 }
 
-/** 全アダプターの利用可否をチェック */
+/** Check availability of all adapters */
 export async function checkAvailability(): Promise<Record<CLIName, boolean>> {
   const results: Record<string, boolean> = {};
   for (const [name, factory] of Object.entries(adapterFactories)) {

@@ -58,7 +58,7 @@ describe("linesOverlap", () => {
 describe("generateFindingId", () => {
   it("generates id with lens prefix", () => {
     expect(generateFindingId("readability", 0)).toBe("r-001");
-    expect(generateFindingId("structural", 4)).toBe("s-005");
+    expect(generateFindingId("architectural", 4)).toBe("a-005");
     expect(generateFindingId("bug_risk", 99)).toBe("b-100");
   });
 });

@@ -8,7 +8,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:readability": "tsx src/test-lens.ts readability",
-    "test:structural": "tsx src/test-lens.ts structural",
+    "test:architectural": "tsx src/test-lens.ts architectural",
     "test:bug-risk": "tsx src/test-lens.ts bug_risk",
     "build": "tsc",
     "lint": "eslint src/"

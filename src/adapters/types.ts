@@ -1,35 +1,35 @@
 // ============================================================
 // CLI Adapter Types
-// CLIRequest / CLIResponse でCLI差分を吸収する
+// Absorb CLI differences via CLIRequest / CLIResponse
 // ============================================================
 
-/** CLI出力バッファの上限 (10MB) */
+/** Max CLI output buffer size (10MB) */
 export const MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 
-/** 書き込み権限が必要なツール名 */
+/** Tool names that require write permission */
 export const WRITE_CAPABLE_TOOLS = ["Write", "Edit", "Bash"] as const;
 
-/** レンズからCLI実行に渡すリクエスト */
+/** Request passed from lens to CLI execution */
 export interface CLIRequest {
-  /** レンズのシステムプロンプト（ファイルパス） */
+  /** Lens system prompt (file path) */
   systemPromptPath: string;
 
-  /** ユーザープロンプト（diff + state + 指示を結合したもの） */
+  /** User prompt (combined diff + state + instructions) */
   userPrompt: string;
 
-  /** 実行ディレクトリ（repo root or tempdir） */
+  /** Working directory (repo root or tempdir) */
   cwd: string;
 
-  /** 許可するツール（adapter側でCLI固有の形式に変換） */
+  /** Allowed tools (adapter converts to CLI-specific format) */
   toolPolicy: ToolPolicy;
 
-  /** エージェントの最大ターン数 */
+  /** Max agent turns */
   maxTurns: number;
 
-  /** 使用モデル */
+  /** Model to use */
   model: string;
 
-  /** タイムアウト（ms） */
+  /** Timeout (ms) */
   timeoutMs: number;
 }
 
@@ -38,7 +38,7 @@ export type ToolPolicy =
   | { type: "read_only" }
   | { type: "explicit"; tools: string[] };
 
-/** CLIから返る統一レスポンス */
+/** Unified response from CLI */
 export interface CLIResponse {
   parsed: LensOutput | null;
   rawStdout: string;
@@ -47,7 +47,7 @@ export interface CLIResponse {
   durationMs: number;
 }
 
-/** 各レンズのJSON出力の共通型 */
+/** Common type for each lens JSON output */
 export interface LensOutput {
   findings: Finding[];
   overall_assessment: "clean" | "minor_issues" | "significant_issues";
@@ -64,12 +64,12 @@ export interface Finding {
   suggestion: string;
   scenario?: string;
   references?: string[];
-  // lens-runner が付与
+  // Assigned by lens-runner
   lens?: string;
   id?: string;
 }
 
-/** アダプターの共通インターフェース */
+/** Common adapter interface */
 export interface CLIAdapter {
   readonly name: string;
   isAvailable(): Promise<boolean>;

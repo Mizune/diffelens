@@ -1,9 +1,10 @@
 import { readFile } from "fs/promises";
+import { existsSync } from "fs";
 import { parse as parseYaml } from "yaml";
 import type { CLIName, ToolPolicy } from "./adapters/index.js";
 
 // ============================================================
-// .ai-review.yaml の型定義と読み込み
+// Type definitions and loader for .ai-review.yaml
 // ============================================================
 
 export interface GlobalConfig {
@@ -91,6 +92,19 @@ export async function loadConfig(configPath: string): Promise<ReviewConfig> {
     convergence: raw.convergence,
     filters: raw.filters ?? { exclude_patterns: [] },
   };
+}
+
+/**
+ * Load config from primary path, falling back to a default path if primary doesn't exist.
+ */
+export async function loadConfigWithFallback(
+  configPath: string,
+  fallbackPath: string
+): Promise<ReviewConfig> {
+  if (existsSync(configPath)) {
+    return loadConfig(configPath);
+  }
+  return loadConfig(fallbackPath);
 }
 
 function normalizeToolPolicy(

@@ -1,35 +1,35 @@
 # AI PR Review Configuration
-# このファイルをリポジトリルートに配置してください
+# Place this file at the repository root
 
 version: "1.0"
 
 global:
   max_rounds: 3
-  language: "ja"
+  language: "en"
   default_cli: "claude"     # "claude" or "codex"
-  timeout_ms: 120000        # 2分
+  timeout_ms: 120000        # 2 minutes
 
 lenses:
   readability:
     enabled: true
     cli: "claude"
     model: "claude-sonnet-4-6"
-    isolation: "tempdir"     # diffのみ渡す（リポジトリ探索不可）
+    isolation: "tempdir"     # diff only (no repository exploration)
     max_turns: 1
-    tool_policy: "none"      # ツールなし
-    timeout_ms: 300000       # 5分
-    severity_cap: "warning"  # readabilityではblockerを出さない
+    tool_policy: "none"      # no tools
+    timeout_ms: 300000       # 5 minutes
+    severity_cap: "warning"  # readability never produces blockers
 
-  structural:
+  architectural:
     enabled: true
     cli: "claude"
     model: "claude-opus-4-6"
-    isolation: "repo"        # リポジトリ内で実行（探索可能）
+    isolation: "repo"        # runs in repository (exploration enabled)
     max_turns: 10
     tool_policy:
       type: "explicit"
       tools: ["Read", "Grep", "Glob"]
-    timeout_ms: 600000       # 10分
+    timeout_ms: 600000       # 10 minutes
     severity_cap: "blocker"
 
   bug_risk:
@@ -41,7 +41,7 @@ lenses:
     tool_policy:
       type: "explicit"
       tools: ["Read", "Grep", "Glob"]
-    timeout_ms: 600000       # 10分
+    timeout_ms: 600000       # 10 minutes
     severity_cap: "blocker"
 
 filters:

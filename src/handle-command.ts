@@ -1,24 +1,28 @@
-import { readFile, writeFile, mkdir } from "fs/promises";
-import { existsSync } from "fs";
-import { Octokit } from "@octokit/rest";
 import type { ReviewState } from "./state/review-state.js";
+import { loadState, saveState } from "./state/review-state.js";
 import { renderSummary, MARKER } from "./output/summary-renderer.js";
+import {
+  getOctokit,
+  parseRepo,
+  findSummaryComment,
+} from "./output/github-client.js";
 import { checkConvergence } from "./convergence.js";
 import { loadConfig } from "./config.js";
 
 // ============================================================
-// /ai-review dismiss {id} {reason} コマンドの処理
+// Handle /ai-review dismiss {id} {reason} command
 // ============================================================
 
 async function main() {
   const prNumber = parseInt(process.env.PR_NUMBER ?? "0");
   const commandBody = process.env.COMMAND_BODY ?? "";
   const commandUser = process.env.COMMAND_USER ?? "unknown";
+  const stateDir = process.env.STATE_DIR ?? ".ai-review-state";
 
   console.log(`Command: ${commandBody}`);
   console.log(`User: ${commandUser}`);
 
-  // コマンドのパース
+  // Parse command
   const match = commandBody.match(
     /^\/ai-review\s+dismiss\s+(\S+)\s*(.*)?$/
   );
@@ -31,20 +35,14 @@ async function main() {
   const [, findingId, reason] = match;
   console.log(`Dismissing: ${findingId}, reason: ${reason || "none"}`);
 
-  // state読み込み
-  const stateDir = ".ai-review-state";
-  const statePath = `${stateDir}/review-state-pr-${prNumber}.json`;
-
-  if (!existsSync(statePath)) {
+  // Load state (via shared module)
+  const state = await loadState(stateDir, prNumber);
+  if (!state) {
     console.error("No review state found for this PR.");
     return;
   }
 
-  const state: ReviewState = JSON.parse(
-    await readFile(statePath, "utf-8")
-  );
-
-  // findingのstatusを更新（イミュータブルに）
+  // Update finding status (immutably)
   const targetIndex = state.findings.findIndex((f) => f.id === findingId);
   if (targetIndex === -1) {
     console.error(`Finding "${findingId}" not found.`);
@@ -74,15 +72,14 @@ async function main() {
     findings: updatedFindings,
     decisions: [
       ...state.decisions,
-      `Round ${state.current_round}: ${findingId} を @${commandUser} が wontfix とした (${reason || "no reason"})`,
+      `Round ${state.current_round}: ${findingId} dismissed as wontfix by @${commandUser} (${reason || "no reason"})`,
     ],
   };
 
-  // state保存
-  await mkdir(stateDir, { recursive: true });
-  await writeFile(statePath, JSON.stringify(updatedState, null, 2), "utf-8");
+  // Save state (via shared module)
+  await saveState(stateDir, updatedState);
 
-  // サマリーコメント更新
+  // Update summary comment (via shared module)
   if (process.env.GITHUB_TOKEN) {
     const configPath = process.env.CONFIG_PATH ?? ".ai-review.yaml";
     const config = await loadConfig(configPath);
@@ -90,32 +87,27 @@ async function main() {
     const decision = checkConvergence(updatedState, config.convergence);
     const body = renderSummary(updatedState, decision);
 
-    const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-    const [owner, repo] = (process.env.GITHUB_REPOSITORY ?? "/").split(
-      "/"
-    );
+    const octokit = getOctokit();
+    const { owner, repo } = parseRepo();
 
-    // 既存コメントを検索して更新
-    const { data: comments } = await octokit.issues.listComments({
+    const existingCommentId = await findSummaryComment(
+      octokit,
       owner,
       repo,
-      issue_number: prNumber,
-      per_page: 100,
-    });
+      prNumber
+    );
 
-    const existing = comments.find((c) => c.body?.includes(MARKER));
-
-    if (existing) {
+    if (existingCommentId) {
       await octokit.issues.updateComment({
         owner,
         repo,
-        comment_id: existing.id,
+        comment_id: existingCommentId,
         body,
       });
       console.log("Summary comment updated.");
     }
 
-    // リアクションで確認
+    // Confirm with a reaction
     await octokit.reactions.createForIssueComment({
       owner,
       repo,

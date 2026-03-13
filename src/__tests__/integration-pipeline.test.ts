@@ -5,13 +5,13 @@ import { updateState } from "../state/review-state.js";
 import { deduplicateFindings } from "../deduplicator.js";
 import { filterBySeverityForRound, checkConvergence } from "../convergence.js";
 import { renderSummary } from "../output/summary-renderer.js";
-import { filterDiffByExcludePatterns, globToRegex } from "../main.js";
+import { filterDiffByExcludePatterns, globToRegex } from "../filters.js";
 import type { ReviewState } from "../state/review-state.js";
 import type { Finding, CLIAdapter, CLIResponse } from "../adapters/types.js";
 import { join } from "path";
 
 // ============================================================
-// CLI アダプターのモック
+// Mock CLI Adapter
 // ============================================================
 
 function mockCLIResponse(findings: Finding[]): CLIResponse {
@@ -47,7 +47,7 @@ import { getAdapter } from "../adapters/index.js";
 const mockedGetAdapter = vi.mocked(getAdapter);
 
 // ============================================================
-// テストデータ
+// Test Data
 // ============================================================
 
 // yarn.lock matches **/*.lock, dist/ matches **/dist/**
@@ -98,7 +98,7 @@ const READABILITY_FINDINGS: Finding[] = [
   },
 ];
 
-const STRUCTURAL_FINDINGS: Finding[] = [
+const ARCHITECTURAL_FINDINGS: Finding[] = [
   {
     file: "src/app.ts",
     line_start: 12,
@@ -107,6 +107,7 @@ const STRUCTURAL_FINDINGS: Finding[] = [
     category: "direct_access",
     summary: "Direct property access without type guard",
     suggestion: "Add a type narrowing check before accessing nested properties",
+    lens: "architectural",
   },
 ];
 
@@ -230,7 +231,7 @@ describe("Pipeline Integration", () => {
     // 3. Lens execution (mocked per lens name)
     const findingsMap: Record<string, Finding[]> = {
       readability: READABILITY_FINDINGS,
-      structural: STRUCTURAL_FINDINGS,
+      architectural: ARCHITECTURAL_FINDINGS,
       bug_risk: BUG_RISK_FINDINGS,
     };
 
@@ -337,7 +338,7 @@ describe("Pipeline Integration", () => {
 
   it("deduplication keeps higher severity when findings overlap", () => {
     const findings: Finding[] = [
-      { file: "src/app.ts", line_start: 10, line_end: 15, severity: "warning", category: "null_deref", summary: "structural", suggestion: "fix", lens: "structural" },
+      { file: "src/app.ts", line_start: 10, line_end: 15, severity: "warning", category: "null_deref", summary: "architectural", suggestion: "fix", lens: "architectural" },
       { file: "src/app.ts", line_start: 12, line_end: 14, severity: "blocker", category: "null_deref", summary: "bug_risk", suggestion: "fix", lens: "bug_risk" },
     ];
 

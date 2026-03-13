@@ -1,19 +1,15 @@
 import type { Finding } from "./adapters/types.js";
+import { SEVERITY_RANK } from "./severity.js";
+import { linesOverlap } from "./state/review-state.js";
 
 // ============================================================
-// 複数レンズの結果をマージし、重複を排除する
+// Merge results from multiple lenses and deduplicate findings
 // ============================================================
-
-const SEVERITY_RANK: Record<string, number> = {
-  blocker: 3,
-  warning: 2,
-  nitpick: 1,
-};
 
 /**
- * 重複判定: 同じファイル・重複する行範囲・同じカテゴリなら重複。
- * 異なるレンズからの異なる観点の指摘は重複としない。
- * 例: "naming" (readability) vs "layer_violation" (structural) → 別指摘
+ * Duplicate detection: same file, overlapping line range, and same category.
+ * Findings from different lenses with different categories are not duplicates.
+ * e.g. "naming" (readability) vs "layer_violation" (architectural) -> separate findings
  */
 function isDuplicate(a: Finding, b: Finding): boolean {
   if (a.file !== b.file) return false;
@@ -23,15 +19,6 @@ function isDuplicate(a: Finding, b: Finding): boolean {
   return true;
 }
 
-function linesOverlap(
-  aStart: number,
-  aEnd: number,
-  bStart: number,
-  bEnd: number
-): boolean {
-  return aStart <= bEnd && bStart <= aEnd;
-}
-
 export function deduplicateFindings(findings: Finding[]): Finding[] {
   const merged: Finding[] = [];
 
@@ -39,7 +26,7 @@ export function deduplicateFindings(findings: Finding[]): Finding[] {
     const dupIndex = merged.findIndex((m) => isDuplicate(m, finding));
 
     if (dupIndex >= 0) {
-      // 重複: severity が高い方を残す
+      // Duplicate: keep the higher severity
       const existing = merged[dupIndex];
       if (
         (SEVERITY_RANK[finding.severity] ?? 0) >

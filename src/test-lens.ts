@@ -3,12 +3,13 @@ import { loadConfig } from "./config.js";
 import { runLens } from "./lens-runner.js";
 import { loadOrCreateState } from "./state/review-state.js";
 import { renderSummary } from "./output/summary-renderer.js";
+import { collectProjectContext, formatProjectContext } from "./project-context.js";
 
 // ============================================================
-// 単一レンズのテスト実行
+// Single lens test runner
 // Usage: npx tsx src/test-lens.ts readability
-//   (PR_NUMBER, BASE_SHA, HEAD_SHA を環境変数で渡すか、
-//    gh cli で自動取得)
+//   (Pass PR_NUMBER, BASE_SHA, HEAD_SHA as env vars,
+//    or they will be auto-fetched via gh cli)
 // ============================================================
 
 async function main() {
@@ -30,7 +31,7 @@ async function main() {
     process.exit(1);
   }
 
-  // PR情報（環境変数 or gh cli）
+  // PR info (from env vars or gh cli)
   const prNumber = parseInt(
     process.env.PR_NUMBER ??
       execSync("gh pr view --json number -q .number", {
@@ -55,23 +56,29 @@ async function main() {
   console.log(`Head: ${headSha.slice(0, 7)}`);
   console.log(`Lens: ${lensName} (${lens.cli} / ${lens.model})\n`);
 
-  // diff取得
+  // Fetch diff
   const diff = execSync(`git diff ${baseSha}...${headSha}`, {
     encoding: "utf-8",
     maxBuffer: 5 * 1024 * 1024,
   });
   console.log(`Diff: ${diff.length} chars\n`);
 
-  // state
+  // State
+  const stateDir = process.env.STATE_DIR ?? ".ai-review-state";
   const state = await loadOrCreateState(
+    stateDir,
     prNumber,
     baseSha,
     headSha,
     config.global.max_rounds
   );
 
-  // 実行
-  const result = await runLens(lens, diff, state, process.cwd());
+  // Project context
+  const projectCtx = await collectProjectContext(process.cwd(), null);
+  const projectContextStr = formatProjectContext(projectCtx);
+
+  // Execute
+  const result = await runLens(lens, diff, state, process.cwd(), undefined, projectContextStr);
 
   console.log("\n--- Result ---");
   console.log(`Success: ${result.success}`);

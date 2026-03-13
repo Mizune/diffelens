@@ -70,7 +70,7 @@ export class ClaudeCodeAdapter implements CLIAdapter {
         });
       });
 
-      // プロンプトを stdin 経由で送信（ARG_MAX 制限を回避）
+      // Send prompt via stdin (to avoid ARG_MAX limit)
       child.stdin.write(request.userPrompt);
       child.stdin.end();
     });
@@ -108,7 +108,7 @@ export class ClaudeCodeAdapter implements CLIAdapter {
 
   private parseOutput(stdout: string): LensOutput | null {
     try {
-      // claude -p --output-format json → { result: "..." }
+      // claude -p --output-format json -> { result: "..." }
       const envelope = JSON.parse(stdout);
       const content = envelope.result ?? envelope;
 
@@ -130,7 +130,7 @@ export class ClaudeCodeAdapter implements CLIAdapter {
     }
   }
 
-  /** JSON出力が前後に余分なテキストを含む場合のフォールバック: findingsキーを持つオブジェクトを抽出 */
+  /** Fallback for when JSON output has surrounding text: extract object with findings key */
   private extractJsonFromText(text: string): LensOutput | null {
     const jsonMatch = text.match(/\{[\s\S]*?"findings"[\s\S]*?\}(?=\s*$)/);
     if (jsonMatch) {

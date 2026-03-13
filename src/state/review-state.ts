@@ -4,7 +4,7 @@ import { join } from "path";
 import type { Finding } from "../adapters/types.js";
 
 // ============================================================
-// Review State: PRごとの状態管理
+// Review State: per-PR state management
 // ============================================================
 
 export interface StateFinding extends Finding {
@@ -37,27 +37,46 @@ export interface ReviewState {
   decisions: string[];
 }
 
-const STATE_DIR = ".ai-review-state";
-
-function stateFilePath(prNumber: number): string {
-  return join(STATE_DIR, `review-state-pr-${prNumber}.json`);
+function stateFilePath(stateDir: string, stateKey: string): string {
+  return join(stateDir, `review-state-${stateKey}.json`);
 }
 
-/** 既存のstateを読み込む。なければ新規作成 */
+function buildStateKey(prNumber: number): string {
+  return prNumber === 0 ? "local" : `pr-${prNumber}`;
+}
+
+/** Load existing state. Returns null if not found. */
+export async function loadState(
+  stateDir: string,
+  prNumber: number
+): Promise<ReviewState | null> {
+  const filePath = stateFilePath(stateDir, buildStateKey(prNumber));
+  if (!existsSync(filePath)) return null;
+
+  try {
+    const content = await readFile(filePath, "utf-8");
+    return JSON.parse(content) as ReviewState;
+  } catch {
+    return null;
+  }
+}
+
+/** Load existing state or create a new one. */
 export async function loadOrCreateState(
+  stateDir: string,
   prNumber: number,
   baseSha: string,
   headSha: string,
   maxRounds: number
 ): Promise<ReviewState> {
-  const filePath = stateFilePath(prNumber);
+  const filePath = stateFilePath(stateDir, buildStateKey(prNumber));
 
   if (existsSync(filePath)) {
     try {
       const content = await readFile(filePath, "utf-8");
       const state = JSON.parse(content) as ReviewState;
 
-      // head_sha が変わっていたら新ラウンド（イミュータブルに新オブジェクト返す）
+      // If head_sha changed, start a new round (return new object immutably)
       if (state.head_sha !== headSha) {
         return {
           ...state,
@@ -95,7 +114,7 @@ function createInitialState(
   };
 }
 
-/** 新しいfindingsでstateを更新（イミュータブル） */
+/** Update state with new findings (immutable) */
 export function updateState(
   state: ReviewState,
   newFindings: Finding[],
@@ -105,7 +124,7 @@ export function updateState(
   const opened: string[] = [];
   const resolved: string[] = [];
 
-  // 既存のopen findingsを評価: 新findingsに含まれていなければ addressed
+  // Evaluate existing open findings: mark as addressed if not in new findings
   const updatedFindings = state.findings.map((existing) => {
     if (existing.status !== "open") return existing;
 
@@ -137,7 +156,7 @@ export function updateState(
     };
   });
 
-  // 新しいfindingsを追加（既存にマッチしないもの）
+  // Add new findings (those that don't match existing ones)
   const addedFindings: StateFinding[] = [];
   for (const nf of newFindings) {
     const existingMatch = updatedFindings.find(
@@ -171,7 +190,7 @@ export function updateState(
 
   const allFindings = [...updatedFindings, ...addedFindings];
 
-  // ラウンド履歴追加
+  // Add round history entry
   const newRoundHistory: RoundHistory = {
     round,
     head_sha: headSha,
@@ -188,10 +207,13 @@ export function updateState(
   };
 }
 
-/** stateをファイルに保存 */
-export async function saveState(state: ReviewState): Promise<void> {
-  await mkdir(STATE_DIR, { recursive: true });
-  const filePath = stateFilePath(state.pr_number);
+/** Save state to file */
+export async function saveState(
+  stateDir: string,
+  state: ReviewState
+): Promise<void> {
+  await mkdir(stateDir, { recursive: true });
+  const filePath = stateFilePath(stateDir, buildStateKey(state.pr_number));
   await writeFile(filePath, JSON.stringify(state, null, 2), "utf-8");
   console.log(`  State saved → ${filePath}`);
 }

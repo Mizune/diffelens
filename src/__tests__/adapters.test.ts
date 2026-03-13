@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-// ClaudeCodeAdapter と CodexAdapter の parseOutput / extractContent をテスト
-// private メソッドなので、アダプターのインスタンスを作って execute をモックするか、
-// 間接的にテストする。ここでは出力パース部分に焦点を当てる。
+// Test parseOutput / extractContent for ClaudeCodeAdapter and CodexAdapter.
+// Since these are private methods, we test equivalent logic directly
+// rather than going through the adapter. Focus is on output parsing.
 
 describe("ClaudeCodeAdapter parseOutput (indirect)", () => {
-  // parseOutput のロジックを直接テスト（private なのでアダプター経由ではなく同等ロジックで）
+  // Directly test parseOutput logic (using equivalent logic since the method is private)
   function parseClaudeOutput(stdout: string) {
     try {
       const envelope = JSON.parse(stdout);

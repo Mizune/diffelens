@@ -22,18 +22,18 @@ jobs:
         with:
           node-version: "20"
 
-      # Claude Code CLIのインストール
+      # Install Claude Code CLI
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
-      # Codex CLIのインストール（Codexを使うレンズがある場合のみ）
+      # Install Codex CLI (only if any lens uses Codex)
       # - name: Install Codex CLI
       #   run: npm install -g @openai/codex
 
       - name: Install orchestrator dependencies
         run: npm ci
 
-      # 前ラウンドのstateを復元
+      # Restore state from previous round
       - name: Download review state
         uses: actions/download-artifact@v4
         with:
@@ -41,7 +41,7 @@ jobs:
           path: .ai-review-state/
         continue-on-error: true
 
-      # レビュー実行
+      # Run review
       - name: Run AI Review
         run: npx tsx src/main.ts
         env:
@@ -54,7 +54,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
 
-      # stateを保存（次ラウンドで使用）
+      # Save state (used in next round)
       - name: Upload review state
         uses: actions/upload-artifact@v4
         with:
