@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { join } from "path";
 import { loadConfig, loadConfigWithFallback } from "./config.js";
 import { runLens, type LensRunResult } from "./lens-runner.js";
