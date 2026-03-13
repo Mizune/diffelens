@@ -21,9 +21,11 @@ function makeState(overrides: Partial<ReviewState> = {}): ReviewState {
 }
 
 const convergence: ConvergenceConfig = {
-  round_1_severities: ["blocker", "warning", "nitpick"],
-  round_2_severities: ["blocker", "warning"],
-  round_3_severities: ["blocker"],
+  round_severities: [
+    ["blocker", "warning", "nitpick"],
+    ["blocker", "warning"],
+    ["blocker"],
+  ],
   approve_condition: "zero_blockers",
 };
 
@@ -178,9 +180,41 @@ describe("filterBySeverityForRound", () => {
     expect(result[0].severity).toBe("blocker");
   });
 
-  it("round 4+ uses round_3 config", () => {
+  it("round 4+ reuses last entry", () => {
     const result = filterBySeverityForRound(findings, 5, convergence);
     expect(result).toHaveLength(1);
     expect(result[0].severity).toBe("blocker");
+  });
+
+  it("5-round config uses index 4 for round 5", () => {
+    const fiveRoundConvergence: ConvergenceConfig = {
+      round_severities: [
+        ["blocker", "warning", "nitpick"],
+        ["blocker", "warning", "nitpick"],
+        ["blocker", "warning"],
+        ["blocker", "warning"],
+        ["blocker"],
+      ],
+      approve_condition: "zero_blockers",
+    };
+    const result = filterBySeverityForRound(findings, 5, fiveRoundConvergence);
+    expect(result).toHaveLength(1);
+    expect(result[0].severity).toBe("blocker");
+  });
+
+  it("round 10 reuses last entry when config has 3 entries", () => {
+    const result = filterBySeverityForRound(findings, 10, convergence);
+    expect(result).toHaveLength(1);
+    expect(result[0].severity).toBe("blocker");
+  });
+
+  it("single-entry config applies to all rounds", () => {
+    const singleConvergence: ConvergenceConfig = {
+      round_severities: [["blocker"]],
+      approve_condition: "zero_blockers",
+    };
+    expect(filterBySeverityForRound(findings, 1, singleConvergence)).toHaveLength(1);
+    expect(filterBySeverityForRound(findings, 3, singleConvergence)).toHaveLength(1);
+    expect(filterBySeverityForRound(findings, 99, singleConvergence)).toHaveLength(1);
   });
 });

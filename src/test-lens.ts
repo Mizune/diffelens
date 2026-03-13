@@ -1,9 +1,12 @@
 import { execSync } from "child_process";
+import { dirname, resolve } from "path";
+import { fileURLToPath } from "url";
 import { loadConfig } from "./config.js";
 import { runLens } from "./lens-runner.js";
 import { loadOrCreateState } from "./state/review-state.js";
 import { renderSummary } from "./output/summary-renderer.js";
 import { collectProjectContext, formatProjectContext } from "./project-context.js";
+import { resolvePrompt } from "./prompt-resolver.js";
 
 // ============================================================
 // Single lens test runner
@@ -77,8 +80,17 @@ async function main() {
   const projectCtx = await collectProjectContext(process.cwd(), null);
   const projectContextStr = formatProjectContext(projectCtx);
 
+  // Resolve prompt
+  const diffelensRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const resolved = await resolvePrompt(lens, process.cwd(), diffelensRoot);
+
   // Execute
-  const result = await runLens(lens, diff, state, process.cwd(), undefined, projectContextStr);
+  let result;
+  try {
+    result = await runLens(lens, diff, state, process.cwd(), resolved.absolutePath, projectContextStr);
+  } finally {
+    await resolved.cleanup();
+  }
 
   console.log("\n--- Result ---");
   console.log(`Success: ${result.success}`);

@@ -20,6 +20,7 @@ import { filterDiffByExcludePatterns } from "./filters.js";
 import { resolveOptions, type RunOptions } from "./options.js";
 import { fetchDiff, hashDiff } from "./diff.js";
 import { collectProjectContext, formatProjectContext } from "./project-context.js";
+import { resolvePrompt, validatePrompts } from "./prompt-resolver.js";
 
 // ============================================================
 // AI PR Review Orchestrator
@@ -122,16 +123,26 @@ export async function main(options?: RunOptions) {
     );
   }
 
-  // 7. Run all lenses in parallel
+  // 7. Validate prompts + run all lenses in parallel
+  await validatePrompts(activeLenses, opts.repoRoot, opts.diffelensRoot);
+
+  for (const lens of activeLenses) {
+    console.log(`  [${lens.name}] prompt: ${lens.promptSource}${lens.promptAppendFile ? ` (+${lens.promptAppendFile})` : ""}`);
+  }
+
   console.log(
-    `Running ${activeLenses.length} lenses in parallel...\n`
+    `\nRunning ${activeLenses.length} lenses in parallel...\n`
   );
 
-  // promptsRoot: in local mode, prompts live in diffelens install dir
-  const promptsRoot = opts.diffelensRoot;
-
   const results = await Promise.allSettled(
-    activeLenses.map((lens) => runLens(lens, diff, state, opts.repoRoot, promptsRoot, projectContextStr))
+    activeLenses.map(async (lens) => {
+      const resolved = await resolvePrompt(lens, opts.repoRoot, opts.diffelensRoot);
+      try {
+        return await runLens(lens, diff, state, opts.repoRoot, resolved.absolutePath, projectContextStr);
+      } finally {
+        await resolved.cleanup();
+      }
+    })
   );
 
   // 7. Collect results

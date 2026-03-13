@@ -10,3 +10,5 @@ export const SEVERITY_RANK: Record<string, number> = {
   warning: 2,
   blocker: 3,
 };
+
+export const VALID_SEVERITIES = new Set<string>(["blocker", "warning", "nitpick"]);

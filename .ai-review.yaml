@@ -4,7 +4,7 @@
 version: "1.0"
 
 global:
-  max_rounds: 3
+  max_rounds: 4
   language: "en"
   default_cli: "claude"     # "claude" or "codex"
   timeout_ms: 120000        # 2 minutes
@@ -55,7 +55,9 @@ filters:
     - "**/node_modules/**"
 
 convergence:
-  round_1_severities: ["blocker", "warning", "nitpick"]
-  round_2_severities: ["blocker", "warning"]
-  round_3_severities: ["blocker"]
+  round_severities:
+    - ["blocker", "warning", "nitpick"]   # round 1: all
+    - ["blocker", "warning", "nitpick"]   # round 2: all
+    - ["blocker", "warning"]              # round 3: drop nitpick
+    - ["blocker"]                         # round 4: blocker only
   approve_condition: "zero_blockers"

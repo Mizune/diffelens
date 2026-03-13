@@ -25,7 +25,7 @@ export async function runLens(
   diff: string,
   state: ReviewState,
   repoRoot: string,
-  promptsRoot?: string,
+  resolvedPromptPath: string,
   projectContext?: string
 ): Promise<LensRunResult> {
   const adapter = await getAdapter(config.cli);
@@ -47,7 +47,7 @@ export async function runLens(
     const userPrompt = buildUserPrompt(config.name, diff, state, projectContext ?? "");
 
     const request: CLIRequest = {
-      systemPromptPath: join(promptsRoot ?? repoRoot, config.promptFile),
+      systemPromptPath: resolvedPromptPath,
       userPrompt,
       cwd,
       toolPolicy: config.toolPolicy,

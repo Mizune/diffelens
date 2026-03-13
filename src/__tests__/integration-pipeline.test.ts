@@ -246,11 +246,13 @@ describe("Pipeline Integration", () => {
       }),
     }));
 
-    const state = makeInitialState();
+    const state = { ...makeInitialState(), max_rounds: config.global.max_rounds };
     const repoRoot = join(import.meta.dirname, "../..");
 
     const results = await Promise.allSettled(
-      config.lenses.map((lens) => runLens(lens, filtered, state, repoRoot))
+      config.lenses.map((lens) =>
+        runLens(lens, filtered, state, repoRoot, join(repoRoot, lens.promptFile))
+      )
     );
 
     const fulfilled = results.filter((r) => r.status === "fulfilled");
@@ -290,7 +292,7 @@ describe("Pipeline Integration", () => {
     expect(summary).toContain("Blockers | 1");
     expect(summary).toContain("Warnings | 2");
     expect(summary).toContain("null dereference");
-    expect(summary).toContain("Round 1/3");
+    expect(summary).toContain("Round 1/4");
   });
 
   it("severityCap downgrades blocker to warning for readability lens", async () => {
@@ -316,14 +318,17 @@ describe("Pipeline Integration", () => {
 
     const state = makeInitialState();
     const repoRoot = join(import.meta.dirname, "../..");
-    const result = await runLens(readabilityLens, SAMPLE_DIFF, state, repoRoot);
+    const result = await runLens(
+      readabilityLens, SAMPLE_DIFF, state, repoRoot,
+      join(repoRoot, readabilityLens.promptFile)
+    );
 
     expect(result.success).toBe(true);
     expect(result.output!.findings[0].severity).toBe("warning");
     expect(result.output!.findings[0].lens).toBe("readability");
   });
 
-  it("round 2 filters out nitpicks", async () => {
+  it("round 3 filters out nitpicks", async () => {
     const config = await loadConfig(CONFIG_PATH);
     const findings: Finding[] = [
       { file: "a.ts", line_start: 1, line_end: 1, severity: "blocker", category: "bug", summary: "s", suggestion: "s" },
@@ -331,7 +336,7 @@ describe("Pipeline Integration", () => {
       { file: "c.ts", line_start: 1, line_end: 1, severity: "nitpick", category: "naming", summary: "s", suggestion: "s" },
     ];
 
-    const result = filterBySeverityForRound(findings, 2, config.convergence);
+    const result = filterBySeverityForRound(findings, 3, config.convergence);
     expect(result).toHaveLength(2);
     expect(result.every((f) => f.severity !== "nitpick")).toBe(true);
   });

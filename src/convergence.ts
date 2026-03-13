@@ -33,26 +33,15 @@ export function checkConvergence(
 
 /**
  * Severity filter based on round.
- * Round 1: all severities, Round 2: blocker+warning, Round 3: blocker only
+ * Uses the round_severities array; rounds beyond the array length reuse the last entry.
  */
 export function filterBySeverityForRound(
   findings: Finding[],
   round: number,
   convergence: ConvergenceConfig
 ): Finding[] {
-  let allowed: string[];
-
-  switch (round) {
-    case 1:
-      allowed = convergence.round_1_severities;
-      break;
-    case 2:
-      allowed = convergence.round_2_severities;
-      break;
-    default:
-      allowed = convergence.round_3_severities;
-      break;
-  }
-
+  const { round_severities } = convergence;
+  const index = Math.min(round - 1, round_severities.length - 1);
+  const allowed = round_severities[index];
   return findings.filter((f) => allowed.includes(f.severity));
 }
