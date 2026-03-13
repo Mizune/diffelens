@@ -102,7 +102,6 @@ describe("loadConfig custom prompt fields", () => {
     enabled: true
     model: "sonnet"
     isolation: "tempdir"
-    max_turns: 1
     tool_policy: "none"
     prompt_file: "my-prompts/readability.md"
 `));
@@ -119,7 +118,6 @@ describe("loadConfig custom prompt fields", () => {
     enabled: true
     model: "sonnet"
     isolation: "tempdir"
-    max_turns: 1
     tool_policy: "none"
     prompt_append_file: "extra-rules.md"
 `));
@@ -137,7 +135,6 @@ describe("loadConfig custom prompt fields", () => {
     enabled: true
     model: "sonnet"
     isolation: "tempdir"
-    max_turns: 1
     tool_policy: "none"
 `));
 
@@ -153,7 +150,6 @@ describe("loadConfig custom prompt fields", () => {
     enabled: true
     model: "sonnet"
     isolation: "repo"
-    max_turns: 5
     tool_policy: "none"
 `));
 
@@ -168,7 +164,6 @@ describe("loadConfig custom prompt fields", () => {
     enabled: true
     model: "sonnet"
     isolation: "tempdir"
-    max_turns: 1
     tool_policy: "none"
     prompt_file: "my-prompt.md"
     prompt_append_file: "extra.md"
@@ -185,7 +180,6 @@ const MINIMAL_LENS = `
     enabled: true
     model: "sonnet"
     isolation: "tempdir"
-    max_turns: 1
     tool_policy: "none"
 `;
 

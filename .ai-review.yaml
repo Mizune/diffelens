@@ -15,7 +15,6 @@ lenses:
     cli: "claude"
     model: "claude-sonnet-4-6"
     isolation: "tempdir"     # diff only (no repository exploration)
-    max_turns: 1
     tool_policy: "none"      # no tools
     timeout_ms: 300000       # 5 minutes
     severity_cap: "warning"  # readability never produces blockers
@@ -25,7 +24,6 @@ lenses:
     cli: "claude"
     model: "claude-opus-4-6"
     isolation: "repo"        # runs in repository (exploration enabled)
-    max_turns: 10
     tool_policy:
       type: "explicit"
       tools: ["Read", "Grep", "Glob"]
@@ -37,7 +35,6 @@ lenses:
     cli: "claude"
     model: "claude-opus-4-6"
     isolation: "repo"
-    max_turns: 8
     tool_policy:
       type: "explicit"
       tools: ["Read", "Grep", "Glob"]

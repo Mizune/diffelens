@@ -51,7 +51,6 @@ export async function runLens(
       userPrompt,
       cwd,
       toolPolicy: config.toolPolicy,
-      maxTurns: config.maxTurns,
       model: config.model,
       timeoutMs: config.timeoutMs,
     };

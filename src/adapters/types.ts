@@ -23,9 +23,6 @@ export interface CLIRequest {
   /** Allowed tools (adapter converts to CLI-specific format) */
   toolPolicy: ToolPolicy;
 
-  /** Max agent turns */
-  maxTurns: number;
-
   /** Model to use */
   model: string;
 

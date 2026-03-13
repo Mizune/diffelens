@@ -27,7 +27,6 @@ function makeLens(overrides: Partial<LensConfig>): LensConfig {
     promptFile: "prompts/readability.md",
     promptSource: "builtin",
     toolPolicy: { type: "none" },
-    maxTurns: 1,
     timeoutMs: 60000,
     isolation: "tempdir",
     severityCap: "blocker",

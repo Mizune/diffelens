@@ -23,7 +23,6 @@ export interface LensConfig {
   promptSource: "builtin" | "custom" | "extended";
   promptAppendFile?: string;
   toolPolicy: ToolPolicy;
-  maxTurns: number;
   timeoutMs: number;
   isolation: "tempdir" | "repo";
   severityCap: "blocker" | "warning" | "nitpick";
@@ -62,7 +61,6 @@ interface RawLensConfig {
   cli?: CLIName;
   model: string;
   isolation: "tempdir" | "repo";
-  max_turns: number;
   tool_policy: "none" | "read_only" | { type: "explicit"; tools: string[] };
   timeout_ms?: number;
   severity_cap?: "blocker" | "warning" | "nitpick";
@@ -123,7 +121,6 @@ export async function loadConfig(configPath: string): Promise<ReviewConfig> {
       promptSource,
       promptAppendFile,
       toolPolicy: normalizeToolPolicy(lens.tool_policy),
-      maxTurns: lens.max_turns,
       timeoutMs: lens.timeout_ms ?? raw.global.timeout_ms,
       isolation: lens.isolation,
       severityCap: lens.severity_cap ?? "blocker",
