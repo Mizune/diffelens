@@ -10,7 +10,7 @@
 
 </p>
 
-Multi-lens AI PR review orchestrator using Claude Code CLI / Codex CLI.
+Multi-lens AI PR review orchestrator using LLM CLI tools such as Claude Code / Codex CLI / Gemini.
 
 ## Concept
 
