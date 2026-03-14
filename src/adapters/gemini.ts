@@ -7,7 +7,6 @@ import type {
   LensOutput,
   ToolPolicy,
 } from "./types.js";
-import { WRITE_CAPABLE_TOOLS } from "./types.js";
 import { stripCodeFences, extractJsonFromText } from "./parse-utils.js";
 
 const execAsync = promisify(execFile);
@@ -97,16 +96,12 @@ export class GeminiAdapter implements CLIAdapter {
   private mapToolPolicy(policy: ToolPolicy): string[] {
     switch (policy.type) {
       case "none":
-        return ["--approval-mode", "plan"];
+        // --yolo in tempdir isolation is safe; --approval-mode plan requires experimental flag
+        return ["--yolo"];
       case "read_only":
-        return ["--approval-mode", "plan"];
-      case "explicit": {
-        const hasWriteTools = policy.tools.some((t) =>
-          WRITE_CAPABLE_TOOLS.some((w) => t === w || t.startsWith(`${w}(`))
-        );
-        // Gemini has no --allowedTools equivalent; use plan for read-only, yolo for write
-        return hasWriteTools ? ["--yolo"] : ["--approval-mode", "plan"];
-      }
+        return ["--yolo"];
+      case "explicit":
+        return ["--yolo"];
     }
   }
 

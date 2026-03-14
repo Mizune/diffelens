@@ -90,6 +90,7 @@ export class CodexAdapter implements CLIAdapter {
       "--model",
       request.model,
       "--json",
+      "--skip-git-repo-check",
       "--sandbox",
       this.mapToolPolicy(request.toolPolicy),
     ];
