@@ -6,7 +6,7 @@ version: "1.0"
 global:
   max_rounds: 4
   language: "en"
-  default_cli: "claude"     # "claude" or "codex"
+  default_cli: "claude"     # "claude", "codex", or "gemini"
   timeout_ms: 120000        # 2 minutes
 
 lenses:

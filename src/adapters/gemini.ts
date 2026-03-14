@@ -1,6 +1,5 @@
 import { spawn, execFile } from "child_process";
 import { promisify } from "util";
-import { readFile } from "fs/promises";
 import type {
   CLIAdapter,
   CLIRequest,
@@ -8,16 +7,17 @@ import type {
   LensOutput,
   ToolPolicy,
 } from "./types.js";
+import { WRITE_CAPABLE_TOOLS } from "./types.js";
 import { stripCodeFences, extractJsonFromText } from "./parse-utils.js";
 
 const execAsync = promisify(execFile);
 
-export class ClaudeCodeAdapter implements CLIAdapter {
-  readonly name = "claude";
+export class GeminiAdapter implements CLIAdapter {
+  readonly name = "gemini";
 
   async isAvailable(): Promise<boolean> {
     try {
-      await execAsync("claude", ["--version"]);
+      await execAsync("gemini", ["--version"]);
       return true;
     } catch {
       return false;
@@ -25,13 +25,16 @@ export class ClaudeCodeAdapter implements CLIAdapter {
   }
 
   async execute(request: CLIRequest): Promise<CLIResponse> {
-    const args = await this.buildArgs(request);
+    const args = this.buildArgs(request);
     const start = Date.now();
 
     return new Promise((resolve) => {
-      const child = spawn("claude", args, {
+      const child = spawn("gemini", args, {
         cwd: request.cwd,
-        env: { ...process.env, CLAUDECODE: "" },
+        env: {
+          ...process.env,
+          GEMINI_SYSTEM_MD: request.systemPromptPath,
+        },
         stdio: ["pipe", "pipe", "pipe"],
       });
 
@@ -71,27 +74,22 @@ export class ClaudeCodeAdapter implements CLIAdapter {
         });
       });
 
-      // Send prompt via stdin (to avoid ARG_MAX limit)
+      // Send prompt via stdin (-p "" makes gemini read from stdin)
       child.stdin.write(request.userPrompt);
       child.stdin.end();
     });
   }
 
-  private async buildArgs(request: CLIRequest): Promise<string[]> {
-    const systemPrompt = await readFile(request.systemPromptPath, "utf-8");
-
+  private buildArgs(request: CLIRequest): string[] {
     const args: string[] = [
       "-p",
-      "--output-format",
+      "",
+      "-o",
       "json",
-      "--model",
+      "-m",
       request.model,
-      "--system-prompt",
-      systemPrompt,
-      "--no-session-persistence",
+      ...this.mapToolPolicy(request.toolPolicy),
     ];
-
-    args.push(...this.mapToolPolicy(request.toolPolicy));
 
     return args;
   }
@@ -99,29 +97,38 @@ export class ClaudeCodeAdapter implements CLIAdapter {
   private mapToolPolicy(policy: ToolPolicy): string[] {
     switch (policy.type) {
       case "none":
-        return ["--tools", ""];
+        return ["--approval-mode", "plan"];
       case "read_only":
-        return ["--allowedTools", "Read"];
-      case "explicit":
-        return ["--allowedTools", policy.tools.join(",")];
+        return ["--approval-mode", "plan"];
+      case "explicit": {
+        const hasWriteTools = policy.tools.some((t) =>
+          WRITE_CAPABLE_TOOLS.some((w) => t === w || t.startsWith(`${w}(`))
+        );
+        // Gemini has no --allowedTools equivalent; use plan for read-only, yolo for write
+        return hasWriteTools ? ["--yolo"] : ["--approval-mode", "plan"];
+      }
     }
   }
 
   private parseOutput(stdout: string): LensOutput | null {
     try {
-      // claude -p --output-format json -> { result: "..." }
+      // gemini -o json -> { session_id, response, stats }
       const envelope = JSON.parse(stdout);
-      const content = envelope.result ?? envelope;
 
-      if (typeof content === "string") {
+      if (envelope.error) {
+        return null;
+      }
+
+      const content = envelope.response;
+      if (typeof content !== "string") {
+        return null;
+      }
+
+      try {
         return JSON.parse(stripCodeFences(content));
+      } catch {
+        return extractJsonFromText(content);
       }
-
-      if (content.findings) {
-        return content as LensOutput;
-      }
-
-      return null;
     } catch {
       return extractJsonFromText(stdout);
     }

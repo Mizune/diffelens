@@ -1,12 +1,14 @@
 import type { CLIAdapter } from "./types.js";
 import { ClaudeCodeAdapter } from "./claude-code.js";
 import { CodexAdapter } from "./codex.js";
+import { GeminiAdapter } from "./gemini.js";
 
-export type CLIName = "claude" | "codex";
+export type CLIName = "claude" | "codex" | "gemini";
 
 const adapterFactories: Record<CLIName, () => CLIAdapter> = {
   claude: () => new ClaudeCodeAdapter(),
   codex: () => new CodexAdapter(),
+  gemini: () => new GeminiAdapter(),
 };
 
 /** Get adapter. Checks availability before returning. */
@@ -36,6 +38,8 @@ function getInstallHint(name: CLIName): string {
       return "npm install -g @anthropic-ai/claude-code";
     case "codex":
       return "npm install -g @openai/codex";
+    case "gemini":
+      return "npm install -g @google/gemini-cli";
   }
 }
 
