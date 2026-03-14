@@ -1,22 +1,55 @@
 import { describe, it, expect } from "vitest";
+import {
+  stripCodeFences,
+  extractJsonFromText,
+} from "../adapters/parse-utils.js";
 
-// Test parseOutput / extractContent for ClaudeCodeAdapter and CodexAdapter.
-// Since these are private methods, we test equivalent logic directly
-// rather than going through the adapter. Focus is on output parsing.
+// Test parseOutput / extractContent for each adapter.
+// Since parseOutput is private, we test equivalent logic directly.
+// Shared utilities (stripCodeFences, extractJsonFromText) are imported
+// from parse-utils; adapter-specific envelope handling is replicated here.
+
+describe("parse-utils", () => {
+  describe("stripCodeFences", () => {
+    it("removes ```json and closing ``` fences", () => {
+      const input = '```json\n{"key": "value"}\n```';
+      expect(stripCodeFences(input)).toBe('{"key": "value"}');
+    });
+
+    it("returns plain text unchanged", () => {
+      expect(stripCodeFences('{"key": "value"}')).toBe('{"key": "value"}');
+    });
+  });
+
+  describe("extractJsonFromText", () => {
+    it("extracts JSON with findings from mixed text", () => {
+      const json = JSON.stringify({
+        findings: [{ file: "a.ts", severity: "warning" }],
+        overall_assessment: "minor_issues",
+      });
+      const text = `Some preamble\n${json}`;
+      const result = extractJsonFromText(text);
+      expect(result?.findings).toHaveLength(1);
+    });
+
+    it("returns null when no findings JSON present", () => {
+      expect(extractJsonFromText("no json here")).toBeNull();
+    });
+
+    it("returns null for malformed JSON with findings keyword", () => {
+      expect(extractJsonFromText('{"findings": broken}')).toBeNull();
+    });
+  });
+});
 
 describe("ClaudeCodeAdapter parseOutput (indirect)", () => {
-  // Directly test parseOutput logic (using equivalent logic since the method is private)
   function parseClaudeOutput(stdout: string) {
     try {
       const envelope = JSON.parse(stdout);
       const content = envelope.result ?? envelope;
 
       if (typeof content === "string") {
-        const cleaned = content
-          .replace(/^```json\s*/m, "")
-          .replace(/\s*```$/m, "")
-          .trim();
-        return JSON.parse(cleaned);
+        return JSON.parse(stripCodeFences(content));
       }
 
       if (content.findings) {
@@ -27,18 +60,6 @@ describe("ClaudeCodeAdapter parseOutput (indirect)", () => {
     } catch {
       return extractJsonFromText(stdout);
     }
-  }
-
-  function extractJsonFromText(text: string) {
-    const jsonMatch = text.match(/\{[\s\S]*"findings"[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {
-        return null;
-      }
-    }
-    return null;
   }
 
   it("parses JSON envelope with result string", () => {
@@ -112,11 +133,7 @@ describe("CodexAdapter parseOutput / extractContent (indirect)", () => {
           const event = JSON.parse(line);
           const content = extractContent(event);
           if (content && content.includes('"findings"')) {
-            const cleaned = content
-              .replace(/^```json\s*/m, "")
-              .replace(/\s*```$/m, "")
-              .trim();
-            return JSON.parse(cleaned);
+            return JSON.parse(stripCodeFences(content));
           }
         } catch {
           continue;
@@ -204,5 +221,107 @@ describe("CodexAdapter parseOutput / extractContent (indirect)", () => {
     it("returns null for unrecognized events", () => {
       expect(extractContent({ type: "tool_call" })).toBeNull();
     });
+  });
+});
+
+// Mirrors GeminiAdapter's private envelope handling for isolated unit testing.
+// Shared parse utilities are imported from parse-utils.
+describe("GeminiAdapter parseOutput (indirect)", () => {
+  const TEST_SESSION_ID = "test-uuid";
+
+  function parseGeminiOutput(stdout: string) {
+    try {
+      const envelope = JSON.parse(stdout);
+
+      if (envelope.error) {
+        return null;
+      }
+
+      const content = envelope.response;
+      if (typeof content !== "string") {
+        return null;
+      }
+
+      try {
+        return JSON.parse(stripCodeFences(content));
+      } catch {
+        return extractJsonFromText(content);
+      }
+    } catch {
+      return extractJsonFromText(stdout);
+    }
+  }
+
+  it("parses standard envelope with response string", () => {
+    const findings = {
+      findings: [{ file: "a.ts", severity: "warning" }],
+      overall_assessment: "minor_issues",
+    };
+    const input = JSON.stringify({
+      session_id: TEST_SESSION_ID,
+      response: JSON.stringify(findings),
+      stats: { total_tokens: 100 },
+    });
+    const result = parseGeminiOutput(input);
+    expect(result.findings).toHaveLength(1);
+    expect(result.overall_assessment).toBe("minor_issues");
+  });
+
+  it("parses response wrapped in code fence", () => {
+    const inner = JSON.stringify({
+      findings: [{ file: "b.ts", severity: "blocker" }],
+      overall_assessment: "significant_issues",
+    });
+    const input = JSON.stringify({
+      session_id: TEST_SESSION_ID,
+      response: "```json\n" + inner + "\n```",
+    });
+    const result = parseGeminiOutput(input);
+    expect(result.findings).toHaveLength(1);
+    expect(result.findings[0].severity).toBe("blocker");
+  });
+
+  it("returns null for error envelope", () => {
+    const input = JSON.stringify({
+      error: { type: "Error", message: "model not found" },
+    });
+    expect(parseGeminiOutput(input)).toBeNull();
+  });
+
+  it("extracts response ignoring stats field", () => {
+    const findings = {
+      findings: [],
+      overall_assessment: "clean",
+    };
+    const input = JSON.stringify({
+      session_id: TEST_SESSION_ID,
+      response: JSON.stringify(findings),
+      stats: {
+        total_tokens: 500,
+        input_tokens: 400,
+        output_tokens: 100,
+      },
+    });
+    const result = parseGeminiOutput(input);
+    expect(result.findings).toHaveLength(0);
+    expect(result.overall_assessment).toBe("clean");
+  });
+
+  it("returns null for empty output", () => {
+    expect(parseGeminiOutput("")).toBeNull();
+  });
+
+  it("returns null for invalid JSON output", () => {
+    expect(parseGeminiOutput("not json at all")).toBeNull();
+  });
+
+  it("falls back to extractJsonFromText for mixed text output", () => {
+    const findings = JSON.stringify({
+      findings: [{ file: "c.ts", severity: "nitpick" }],
+      overall_assessment: "minor_issues",
+    });
+    const text = `Here is the review:\n${findings}`;
+    const result = parseGeminiOutput(text);
+    expect(result.findings).toHaveLength(1);
   });
 });
