@@ -9,6 +9,7 @@ import type {
   ToolPolicy,
 } from "./types.js";
 import { MAX_BUFFER_BYTES, WRITE_CAPABLE_TOOLS } from "./types.js";
+import { stripCodeFences } from "./parse-utils.js";
 
 const execAsync = promisify(execFile);
 
@@ -123,11 +124,7 @@ export class CodexAdapter implements CLIAdapter {
           const event = JSON.parse(line);
           const content = this.extractContent(event);
           if (content && content.includes('"findings"')) {
-            const cleaned = content
-              .replace(/^```json\s*/m, "")
-              .replace(/\s*```$/m, "")
-              .trim();
-            return JSON.parse(cleaned);
+            return JSON.parse(stripCodeFences(content));
           }
         } catch {
           continue;

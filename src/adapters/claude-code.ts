@@ -8,6 +8,7 @@ import type {
   LensOutput,
   ToolPolicy,
 } from "./types.js";
+import { stripCodeFences, extractJsonFromText } from "./parse-utils.js";
 
 const execAsync = promisify(execFile);
 
@@ -113,11 +114,7 @@ export class ClaudeCodeAdapter implements CLIAdapter {
       const content = envelope.result ?? envelope;
 
       if (typeof content === "string") {
-        const cleaned = content
-          .replace(/^```json\s*/m, "")
-          .replace(/\s*```$/m, "")
-          .trim();
-        return JSON.parse(cleaned);
+        return JSON.parse(stripCodeFences(content));
       }
 
       if (content.findings) {
@@ -126,20 +123,7 @@ export class ClaudeCodeAdapter implements CLIAdapter {
 
       return null;
     } catch {
-      return this.extractJsonFromText(stdout);
+      return extractJsonFromText(stdout);
     }
-  }
-
-  /** Fallback for when JSON output has surrounding text: extract object with findings key */
-  private extractJsonFromText(text: string): LensOutput | null {
-    const jsonMatch = text.match(/\{[\s\S]*?"findings"[\s\S]*?\}(?=\s*$)/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {
-        return null;
-      }
-    }
-    return null;
   }
 }
