@@ -26,6 +26,9 @@ jobs:
       - name: Install Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
 
+      - name: Install Gemini CLI
+        run: npm install -g @google/gemini-cli
+
       # Install Codex CLI (only if any lens uses Codex)
       # - name: Install Codex CLI
       #   run: npm install -g @openai/codex
@@ -48,11 +51,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
+          CONFIG_PATH: ${{ github.workspace }}/ai-review-gemini.yaml
 
       # Save state (used in next round)
       - name: Upload review state
