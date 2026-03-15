@@ -33,6 +33,7 @@ export interface CLIRequest {
 export type ToolPolicy =
   | { type: "none" }
   | { type: "read_only" }
+  | { type: "all" }
   | { type: "explicit"; tools: string[] };
 
 /** Unified response from CLI */

@@ -61,7 +61,7 @@ interface RawLensConfig {
   cli?: CLIName;
   model: string;
   isolation: "tempdir" | "repo";
-  tool_policy: "none" | "read_only" | { type: "explicit"; tools: string[] };
+  tool_policy: "none" | "read_only" | "all" | { type: "explicit"; tools: string[] };
   timeout_ms?: number;
   severity_cap?: "blocker" | "warning" | "nitpick";
   prompt_file?: string;
@@ -305,9 +305,10 @@ function validateRoundSeverities(roundSeverities: string[][]): void {
 }
 
 function normalizeToolPolicy(
-  raw: "none" | "read_only" | { type: "explicit"; tools: string[] }
+  raw: "none" | "read_only" | "all" | { type: "explicit"; tools: string[] }
 ): ToolPolicy {
   if (raw === "none") return { type: "none" };
   if (raw === "read_only") return { type: "read_only" };
+  if (raw === "all") return { type: "all" };
   return raw;
 }

@@ -93,16 +93,12 @@ export class GeminiAdapter implements CLIAdapter {
     return args;
   }
 
-  private mapToolPolicy(policy: ToolPolicy): string[] {
-    switch (policy.type) {
-      case "none":
-        // --yolo in tempdir isolation is safe; --approval-mode plan requires experimental flag
-        return ["--yolo"];
-      case "read_only":
-        return ["--yolo"];
-      case "explicit":
-        return ["--yolo"];
-    }
+  // Gemini CLI uses --yolo for non-interactive mode (auto-approves all tools).
+  // It does not support fine-grained tool restrictions, so all policies
+  // map to --yolo. The semantic difference is expressed in the config
+  // for consistency across adapters.
+  private mapToolPolicy(_policy: ToolPolicy): string[] {
+    return ["--yolo"];
   }
 
   private parseOutput(stdout: string): LensOutput | null {

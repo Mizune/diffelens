@@ -104,6 +104,8 @@ export class CodexAdapter implements CLIAdapter {
         return "read-only";
       case "read_only":
         return "read-only";
+      case "all":
+        return "full-auto";
       case "explicit":
         if (policy.tools.some((t) =>
           WRITE_CAPABLE_TOOLS.some((w) => t === w || t.startsWith(`${w}(`))
