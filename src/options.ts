@@ -17,15 +17,39 @@ export interface RunOptions {
   configPath: string;
   stateDir: string;
   diffTarget: DiffTarget;
+  cliBase: string | undefined;
+  cliHead: string | undefined;
+}
+
+// Reject shell metacharacters to prevent command injection
+export function validateGitRef(ref: string): boolean {
+  return ref.length > 0 && !/[;&|`$(){}!<>\n\r]/.test(ref);
 }
 
 export function resolveOptions(): RunOptions {
   const args = process.argv.slice(2);
 
   const mode = parseArg(args, "--mode") ?? detectMode();
-  const diffTarget = (parseArg(args, "--diff-target") ?? "all") as DiffTarget;
+  const explicitDiffTarget = parseArg(args, "--diff-target");
+  const diffTarget = (explicitDiffTarget ?? "all") as DiffTarget;
   const stateDir = parseArg(args, "--state-dir") ?? defaultStateDir(mode);
   const configPath = parseArg(args, "--config") ?? (process.env.CONFIG_PATH ?? ".ai-review.yaml");
+
+  const cliBase = parseArg(args, "--base");
+  const cliHead = parseArg(args, "--head");
+
+  if (cliBase !== undefined && !validateGitRef(cliBase)) {
+    console.error(`Invalid git ref for --base: "${cliBase}"`);
+    process.exit(1);
+  }
+  if (cliHead !== undefined && !validateGitRef(cliHead)) {
+    console.error(`Invalid git ref for --head: "${cliHead}"`);
+    process.exit(1);
+  }
+
+  if (explicitDiffTarget && (cliBase || cliHead)) {
+    console.warn("--base/--head provided; --diff-target will be ignored");
+  }
 
   const diffelensRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const repoRoot = process.cwd();
@@ -41,6 +65,8 @@ export function resolveOptions(): RunOptions {
       configPath,
       stateDir,
       diffTarget,
+      cliBase,
+      cliHead,
     };
   }
 
@@ -54,6 +80,8 @@ export function resolveOptions(): RunOptions {
     configPath,
     stateDir,
     diffTarget,
+    cliBase,
+    cliHead,
   };
 }
 
