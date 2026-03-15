@@ -1,7 +1,8 @@
 import { Octokit } from "@octokit/rest";
 import type { ReviewState } from "../state/review-state.js";
 import type { ReviewDecision } from "../convergence.js";
-import { renderSummary, MARKER, embedState, extractState } from "./summary-renderer.js";
+import { renderSummary, MARKER } from "./summary-renderer.js";
+import { embedState, extractState } from "./comment-state.js";
 
 // ============================================================
 // GitHub API: post and update summary comments

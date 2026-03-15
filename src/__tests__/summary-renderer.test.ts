@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { renderSummary, MARKER, embedState, extractState } from "../output/summary-renderer.js";
+import { renderSummary, MARKER } from "../output/summary-renderer.js";
+import { embedState, extractState } from "../output/comment-state.js";
 import type { ReviewState } from "../state/review-state.js";
 
 function makeState(overrides: Partial<ReviewState> = {}): ReviewState {

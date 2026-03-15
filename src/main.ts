@@ -108,7 +108,12 @@ export async function main(options?: RunOptions) {
   let state: Awaited<ReturnType<typeof loadOrCreateState>>;
   if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
     // GitHub mode: load state from PR comment
-    const commentState = await loadStateFromComment(opts.prNumber);
+    let commentState: Awaited<ReturnType<typeof loadStateFromComment>> = null;
+    try {
+      commentState = await loadStateFromComment(opts.prNumber);
+    } catch (e) {
+      console.warn(`  Failed to load state from comment, starting fresh: ${e}`);
+    }
     state = commentState
       ? advanceRoundIfNeeded(commentState, headSha)
       : createInitialState(opts.prNumber, baseSha, headSha, config.global.max_rounds);
