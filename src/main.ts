@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { join } from "path";
-import { loadConfig, loadConfigWithFallback } from "./config.js";
+import { existsSync } from "fs";
+import { loadConfig, loadConfigWithFallback, loadConfigWithLocalOverlay, LOCAL_CONFIG_FILENAME } from "./config.js";
 import { runLens, type LensRunResult } from "./lens-runner.js";
 import {
   loadOrCreateState,
@@ -48,11 +49,25 @@ export async function main(options?: RunOptions) {
   console.log("CLI availability:", availability);
 
   // 2. Load config (with fallback to diffelens default for local mode)
-  const fallbackConfigPath = join(opts.diffelensRoot, ".ai-review.yaml");
-  const config =
-    opts.mode === "local"
-      ? await loadConfigWithFallback(opts.configPath, fallbackConfigPath)
-      : await loadConfig(opts.configPath);
+  let config;
+  if (opts.mode === "local" && !opts.configExplicit) {
+    // Local mode without explicit --config: resolve base config (with fallback) + local overlay
+    const fallbackConfigPath = join(opts.diffelensRoot, ".ai-review.yaml");
+    const basePath = existsSync(opts.configPath) ? opts.configPath : fallbackConfigPath;
+    const localPath = join(opts.repoRoot, LOCAL_CONFIG_FILENAME);
+    const result = await loadConfigWithLocalOverlay(basePath, localPath);
+    config = result.config;
+    if (result.localOverlayApplied) {
+      console.log(`Config: loaded ${LOCAL_CONFIG_FILENAME} overlay`);
+    }
+  } else if (opts.mode === "local") {
+    // Local mode with explicit --config: use that file only, no overlay
+    const fallbackConfigPath = join(opts.diffelensRoot, ".ai-review.yaml");
+    config = await loadConfigWithFallback(opts.configPath, fallbackConfigPath);
+  } else {
+    // GitHub mode: use config as-is
+    config = await loadConfig(opts.configPath);
+  }
 
   console.log(
     `Config: ${config.lenses.length} lenses, max_rounds=${config.global.max_rounds}\n`

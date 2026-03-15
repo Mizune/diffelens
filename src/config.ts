@@ -81,12 +81,12 @@ interface RawConfig {
   filters: { exclude_patterns: string[] };
 }
 
+export const LOCAL_CONFIG_FILENAME = ".ai-review.local.yaml";
+
 const BUILTIN_LENSES = new Set(["readability", "architectural", "bug_risk"]);
 
-export async function loadConfig(configPath: string): Promise<ReviewConfig> {
-  const content = await readFile(configPath, "utf-8");
-  const raw = parseYaml(content) as RawConfig;
-
+/** Normalize raw config into the final ReviewConfig */
+function normalizeRawConfig(raw: RawConfig): ReviewConfig {
   const lenses: LensConfig[] = [];
 
   for (const [name, lens] of Object.entries(raw.lenses)) {
@@ -133,6 +133,91 @@ export async function loadConfig(configPath: string): Promise<ReviewConfig> {
     convergence: normalizeConvergence(raw.convergence),
     filters: raw.filters ?? { exclude_patterns: [] },
   };
+}
+
+export async function loadConfig(configPath: string): Promise<ReviewConfig> {
+  const content = await readFile(configPath, "utf-8");
+  const raw = parseYaml(content) as RawConfig;
+  return normalizeRawConfig(raw);
+}
+
+/**
+ * Deep merge a local overlay config over a base config.
+ * - global: field-level merge
+ * - lenses: per-lens field-level merge (new lenses are added)
+ * - convergence: field-level merge
+ * - filters.exclude_patterns: array replacement (not appended)
+ */
+export function deepMergeRawConfig(base: RawConfig, overlay: Record<string, unknown>): RawConfig {
+  const merged = { ...base };
+
+  // global: shallow merge
+  if (overlay.global && typeof overlay.global === "object") {
+    merged.global = { ...base.global, ...(overlay.global as Partial<RawConfig["global"]>) };
+  }
+
+  // lenses: per-lens field-level merge
+  if (overlay.lenses && typeof overlay.lenses === "object") {
+    const overlayLenses = overlay.lenses as Record<string, Partial<RawLensConfig>>;
+    const mergedLenses = { ...base.lenses };
+    for (const [name, lensOverlay] of Object.entries(overlayLenses)) {
+      if (name in mergedLenses) {
+        mergedLenses[name] = { ...mergedLenses[name], ...lensOverlay };
+      } else {
+        mergedLenses[name] = lensOverlay as RawLensConfig;
+      }
+    }
+    merged.lenses = mergedLenses;
+  }
+
+  // convergence: field-level merge
+  if (overlay.convergence && typeof overlay.convergence === "object") {
+    merged.convergence = {
+      ...base.convergence,
+      ...(overlay.convergence as Partial<RawConvergenceConfig>),
+    };
+  }
+
+  // filters: replace exclude_patterns array
+  if (overlay.filters && typeof overlay.filters === "object") {
+    const overlayFilters = overlay.filters as Partial<RawConfig["filters"]>;
+    if (overlayFilters.exclude_patterns) {
+      merged.filters = { ...base.filters, exclude_patterns: overlayFilters.exclude_patterns };
+    }
+  }
+
+  // version: overlay wins if present
+  if (overlay.version && typeof overlay.version === "string") {
+    merged.version = overlay.version;
+  }
+
+  return merged;
+}
+
+/**
+ * Load config with local overlay support.
+ * If localPath exists, deep-merges it over the base config before normalization.
+ */
+export async function loadConfigWithLocalOverlay(
+  basePath: string,
+  localPath: string
+): Promise<{ config: ReviewConfig; localOverlayApplied: boolean }> {
+  const baseContent = await readFile(basePath, "utf-8");
+  const baseRaw = parseYaml(baseContent) as RawConfig;
+
+  if (!existsSync(localPath)) {
+    return { config: normalizeRawConfig(baseRaw), localOverlayApplied: false };
+  }
+
+  const localContent = await readFile(localPath, "utf-8");
+  const localRaw = parseYaml(localContent) as Record<string, unknown>;
+
+  if (!localRaw || typeof localRaw !== "object") {
+    return { config: normalizeRawConfig(baseRaw), localOverlayApplied: false };
+  }
+
+  const merged = deepMergeRawConfig(baseRaw, localRaw);
+  return { config: normalizeRawConfig(merged), localOverlayApplied: true };
 }
 
 function resolvePromptConfig(

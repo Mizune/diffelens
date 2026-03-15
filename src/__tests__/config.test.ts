@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from "vitest";
-import { loadConfig } from "../config.js";
+import { loadConfig, deepMergeRawConfig, loadConfigWithLocalOverlay } from "../config.js";
 import { writeFile, mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
@@ -285,5 +285,232 @@ describe("loadConfig convergence normalization", () => {
   approve_condition: "zero_blockers"`));
 
     await expect(loadConfig(path)).rejects.toThrow('Invalid severity "critical"');
+  });
+});
+
+// ============================================================
+// deepMergeRawConfig
+// ============================================================
+
+function makeRawConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    version: "1.0",
+    global: {
+      max_rounds: 3,
+      language: "en",
+      default_cli: "gemini" as const,
+      timeout_ms: 120000,
+    },
+    lenses: {
+      readability: {
+        enabled: true,
+        cli: "gemini" as const,
+        model: "gemini-2.5-flash",
+        isolation: "tempdir" as const,
+        tool_policy: "none" as const,
+        timeout_ms: 300000,
+        severity_cap: "warning" as const,
+      },
+      architectural: {
+        enabled: true,
+        cli: "gemini" as const,
+        model: "gemini-2.5-flash",
+        isolation: "repo" as const,
+        tool_policy: "none" as const,
+      },
+    },
+    convergence: {
+      round_severities: [["blocker", "warning", "nitpick"], ["blocker", "warning"], ["blocker"]],
+      approve_condition: "zero_blockers" as const,
+    },
+    filters: { exclude_patterns: ["**/*.lock"] },
+    ...overrides,
+  };
+}
+
+describe("deepMergeRawConfig", () => {
+  it("overrides only global.default_cli when specified", () => {
+    const base = makeRawConfig();
+    const overlay = { global: { default_cli: "claude" } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.global.default_cli).toBe("claude");
+    expect(merged.global.max_rounds).toBe(3);
+    expect(merged.global.timeout_ms).toBe(120000);
+  });
+
+  it("overrides only model for a specific lens", () => {
+    const base = makeRawConfig();
+    const overlay = { lenses: { readability: { model: "claude-opus-4-6" } } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.lenses.readability.model).toBe("claude-opus-4-6");
+    expect(merged.lenses.readability.cli).toBe("gemini");
+    expect(merged.lenses.readability.isolation).toBe("tempdir");
+    expect(merged.lenses.architectural.model).toBe("gemini-2.5-flash");
+  });
+
+  it("adds a new lens from overlay", () => {
+    const base = makeRawConfig();
+    const overlay = {
+      lenses: {
+        security: {
+          enabled: true,
+          model: "claude-opus-4-6",
+          isolation: "repo",
+          tool_policy: "none",
+          prompt_file: "prompts/security.md",
+        },
+      },
+    };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.lenses).toHaveProperty("security");
+    expect((merged.lenses as Record<string, unknown>)["security"]).toMatchObject({
+      enabled: true,
+      model: "claude-opus-4-6",
+    });
+    expect(merged.lenses.readability).toBeDefined();
+  });
+
+  it("overrides convergence.approve_condition only", () => {
+    const base = makeRawConfig();
+    const overlay = { convergence: { approve_condition: "zero_blockers_and_warnings" } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.convergence.approve_condition).toBe("zero_blockers_and_warnings");
+    expect((merged.convergence as { round_severities: string[][] }).round_severities).toHaveLength(3);
+  });
+
+  it("replaces filters.exclude_patterns entirely", () => {
+    const base = makeRawConfig();
+    const overlay = { filters: { exclude_patterns: ["**/*.min.js", "**/vendor/**"] } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.filters.exclude_patterns).toEqual(["**/*.min.js", "**/vendor/**"]);
+  });
+
+  it("returns base unchanged when overlay is empty", () => {
+    const base = makeRawConfig();
+    const merged = deepMergeRawConfig(base, {});
+
+    expect(merged.global).toEqual(base.global);
+    expect(merged.lenses).toEqual(base.lenses);
+    expect(merged.convergence).toEqual(base.convergence);
+    expect(merged.filters).toEqual(base.filters);
+  });
+
+  it("can disable a lens via overlay", () => {
+    const base = makeRawConfig();
+    const overlay = { lenses: { readability: { enabled: false } } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.lenses.readability.enabled).toBe(false);
+  });
+
+  it("does not mutate the base config", () => {
+    const base = makeRawConfig();
+    const originalCli = base.global.default_cli;
+    deepMergeRawConfig(base, { global: { default_cli: "claude" } });
+
+    expect(base.global.default_cli).toBe(originalCli);
+  });
+});
+
+// ============================================================
+// loadConfigWithLocalOverlay
+// ============================================================
+
+async function writeYamlFile(dir: string, filename: string, yaml: string): Promise<string> {
+  const path = join(dir, filename);
+  await writeFile(path, yaml, "utf-8");
+  return path;
+}
+
+describe("loadConfigWithLocalOverlay", () => {
+  it("applies local overlay when file exists", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
+    tempDirs.push(dir);
+
+    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".ai-review.local.yaml", `
+global:
+  default_cli: "claude"
+lenses:
+  readability:
+    cli: "claude"
+    model: "claude-opus-4-6"
+`);
+
+    const basePath = join(dir, ".ai-review.yaml");
+    const localPath = join(dir, ".ai-review.local.yaml");
+    const { config, localOverlayApplied } = await loadConfigWithLocalOverlay(basePath, localPath);
+
+    expect(localOverlayApplied).toBe(true);
+    expect(config.global.default_cli).toBe("claude");
+    const readability = config.lenses.find((l) => l.name === "readability");
+    expect(readability?.cli).toBe("claude");
+    expect(readability?.model).toBe("claude-opus-4-6");
+    // Unchanged lens
+    const architectural = config.lenses.find((l) => l.name === "architectural");
+    expect(architectural?.cli).toBe("claude"); // default_cli changed to claude
+    expect(architectural?.model).toBe("claude-opus-4-6");
+  });
+
+  it("returns base config when local file does not exist", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
+    tempDirs.push(dir);
+
+    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
+
+    const basePath = join(dir, ".ai-review.yaml");
+    const localPath = join(dir, ".ai-review.local.yaml");
+    const { config, localOverlayApplied } = await loadConfigWithLocalOverlay(basePath, localPath);
+
+    expect(localOverlayApplied).toBe(false);
+    expect(config.global.default_cli).toBe("claude");
+    expect(config.lenses).toHaveLength(3);
+  });
+
+  it("validates merged config (invalid after merge throws)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
+    tempDirs.push(dir);
+
+    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".ai-review.local.yaml", `
+convergence:
+  round_severities: []
+  approve_condition: "zero_blockers"
+`);
+
+    const basePath = join(dir, ".ai-review.yaml");
+    const localPath = join(dir, ".ai-review.local.yaml");
+    await expect(loadConfigWithLocalOverlay(basePath, localPath)).rejects.toThrow(
+      "round_severities must not be empty"
+    );
+  });
+
+  it("overrides cli and model per lens for local use", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
+    tempDirs.push(dir);
+
+    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".ai-review.local.yaml", `
+lenses:
+  bug_risk:
+    cli: "gemini"
+    model: "gemini-2.5-pro"
+`);
+
+    const basePath = join(dir, ".ai-review.yaml");
+    const localPath = join(dir, ".ai-review.local.yaml");
+    const { config } = await loadConfigWithLocalOverlay(basePath, localPath);
+
+    const bugRisk = config.lenses.find((l) => l.name === "bug_risk");
+    expect(bugRisk?.cli).toBe("gemini");
+    expect(bugRisk?.model).toBe("gemini-2.5-pro");
+    // Other lenses unchanged
+    const readability = config.lenses.find((l) => l.name === "readability");
+    expect(readability?.cli).toBe("claude");
   });
 });
