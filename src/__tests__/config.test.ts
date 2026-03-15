@@ -130,6 +130,19 @@ describe("loadConfig", () => {
     });
   });
 
+  it("normalizes tool_policy 'all'", async () => {
+    const path = await writeYamlConfig(BASE_YAML(`
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "repo"
+    tool_policy: "all"
+`));
+    const config = await loadConfig(path);
+    const readability = config.lenses.find((l) => l.name === "readability");
+    expect(readability?.toolPolicy).toEqual({ type: "all" });
+  });
+
   it("loads convergence settings (new round_severities format)", async () => {
     const path = await writeYamlConfig(FULL_YAML);
     const config = await loadConfig(path);

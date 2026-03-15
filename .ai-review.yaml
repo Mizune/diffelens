@@ -24,7 +24,7 @@ lenses:
     cli: "gemini"
     model: "gemini-2.5-flash"
     isolation: "repo"        # runs in repository (exploration enabled)
-    tool_policy: "none"      # gemini --yolo enables all tools regardless
+    tool_policy: "all"       # all tools available
     timeout_ms: 600000       # 10 minutes
     severity_cap: "blocker"
 
@@ -33,7 +33,7 @@ lenses:
     cli: "gemini"
     model: "gemini-2.5-flash"
     isolation: "repo"
-    tool_policy: "none"      # gemini --yolo enables all tools regardless
+    tool_policy: "all"       # all tools available
     timeout_ms: 600000       # 10 minutes
     severity_cap: "blocker"
 

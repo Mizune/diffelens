@@ -102,6 +102,8 @@ export class ClaudeCodeAdapter implements CLIAdapter {
         return ["--tools", ""];
       case "read_only":
         return ["--allowedTools", "Read"];
+      case "all":
+        return [];
       case "explicit":
         return ["--allowedTools", policy.tools.join(",")];
     }
