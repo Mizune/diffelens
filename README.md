@@ -16,7 +16,7 @@ Multi-lens AI PR review orchestrator using LLM CLI tools such as Claude Code / C
 
 - **Lens Separation**: readability / architectural / bug_risk run as separate LLM invocations
 - **Context Control**: readability receives only the diff; architectural allows full repository exploration
-- **State Management**: `review_state.json` tracks findings across rounds and prevents contradictions
+- **State Management**: Findings tracked across rounds — comment-embedded (GitHub) or file-based (local)
 - **Convergence Control**: Round limit + progressive severity filtering prevents endless review loops
 - **CLI Abstraction**: Claude Code / Codex / Gemini can be swapped via adapter pattern
 
@@ -68,6 +68,7 @@ src/
 │   └── review-state.ts  # State management
 └── output/
     ├── summary-renderer.ts  # Markdown summary generation
+    ├── comment-state.ts     # State embedding in PR comments
     └── github-client.ts     # GitHub API client
 prompts/
 ├── readability.md

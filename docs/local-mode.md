@@ -78,6 +78,41 @@ npx tsx src/test-lens.ts bug_risk
 
 Place `.ai-review.yaml` at the repository root. If no config exists in the target repo, diffelens uses its own bundled default config.
 
+### Local Config Overlay
+
+You can override settings for local development by creating `.ai-review.local.yaml` alongside `.ai-review.yaml`. In local mode, diffelens auto-detects this file and deep-merges it over the base config. Only specify fields you want to override — everything else is inherited.
+
+```yaml
+# .ai-review.local.yaml — use Claude locally instead of Gemini
+global:
+  default_cli: "claude"
+
+lenses:
+  readability:
+    cli: "claude"
+    model: "claude-opus-4-6"
+  architectural:
+    cli: "claude"
+    model: "claude-opus-4-6"
+  bug_risk:
+    cli: "claude"
+    model: "claude-opus-4-6"
+```
+
+**Merge rules:**
+
+| Field | Strategy |
+|-------|----------|
+| `global.*` | Field-level overwrite |
+| `lenses.<name>.*` | Per-lens field-level overwrite |
+| `convergence.*` | Field-level overwrite |
+| `filters.exclude_patterns` | Array replacement (not appended) |
+
+**Notes:**
+- `.ai-review.local.yaml` is gitignored by default
+- Skipped when `--config` is explicitly provided
+- Only applied in local mode (GitHub Actions always uses `.ai-review.yaml`)
+
 ### Default Config (Claude Code)
 
 ```yaml
