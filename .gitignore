@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .ai-review-state/
+.ai-review.local.yaml
 .env*
 *.log
 .DS_Store

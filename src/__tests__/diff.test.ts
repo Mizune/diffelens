@@ -134,6 +134,7 @@ function makeOptions(overrides: Partial<RunOptions> = {}): RunOptions {
     repoRoot: "/tmp/repo",
     diffelensRoot: "/tmp/diffelens",
     configPath: ".ai-review.yaml",
+    configExplicit: false,
     stateDir: ".ai-review-state",
     diffTarget: "all",
     cliBase: undefined,
