@@ -19,7 +19,7 @@ import {
 import { checkAvailability, type Finding } from "./adapters/index.js";
 import { filterDiffByExcludePatterns } from "./filters.js";
 import { resolveOptions, type RunOptions } from "./options.js";
-import { fetchDiff, hashDiff } from "./diff.js";
+import { fetchDiff, hashDiff, resolveGitRef } from "./diff.js";
 import { collectProjectContext, formatProjectContext } from "./project-context.js";
 import { resolvePrompt, validatePrompts } from "./prompt-resolver.js";
 
@@ -82,9 +82,24 @@ export async function main(options?: RunOptions) {
     return;
   }
 
-  // For local mode, compute headSha from diff hash
-  const headSha = opts.mode === "local" ? hashDiff(diff) : opts.headSha;
-  const baseSha = opts.baseSha;
+  // Resolve SHAs for state tracking
+  let headSha: string;
+  if (opts.mode === "github") {
+    headSha = opts.headSha;
+  } else if (opts.cliHead) {
+    headSha = resolveGitRef(opts.cliHead, opts.repoRoot);
+  } else {
+    headSha = hashDiff(diff);
+  }
+
+  let baseSha: string;
+  if (opts.mode === "github") {
+    baseSha = opts.baseSha;
+  } else if (opts.cliBase) {
+    baseSha = resolveGitRef(opts.cliBase, opts.repoRoot);
+  } else {
+    baseSha = opts.baseSha;
+  }
 
   // 4. Previous round state
   const state = await loadOrCreateState(

@@ -19,15 +19,57 @@ export function hashDiff(diff: string): string {
   return createHash("sha256").update(diff).digest("hex").slice(0, 12);
 }
 
-function buildDiffCommand(options: RunOptions): string {
+export function resolveGitRef(ref: string, cwd: string): string {
+  return execSync(`git rev-parse ${ref}`, {
+    encoding: "utf-8",
+    cwd,
+  }).trim();
+}
+
+export function detectDefaultBranch(cwd: string): string {
+  try {
+    const ref = execSync("git symbolic-ref refs/remotes/origin/HEAD", {
+      encoding: "utf-8",
+      cwd,
+      stdio: ["pipe", "pipe", "pipe"],
+    }).trim();
+    // refs/remotes/origin/main → main
+    return ref.replace("refs/remotes/origin/", "");
+  } catch {
+    return "main";
+  }
+}
+
+export function buildDiffCommand(options: RunOptions): string {
   if (options.mode === "github") {
     return `git diff ${options.baseSha}...${options.headSha}`;
   }
 
-  return localDiffCommand(options.diffTarget);
+  const defaultBranch = detectDefaultBranch(options.repoRoot);
+
+  if (options.cliBase || options.cliHead) {
+    return buildRefDiffCommand(options.cliBase, options.cliHead, defaultBranch);
+  }
+
+  return localDiffCommand(options.diffTarget, defaultBranch);
 }
 
-function localDiffCommand(target: DiffTarget): string {
+export function buildRefDiffCommand(
+  base: string | undefined,
+  head: string | undefined,
+  defaultBranch: string = "main"
+): string {
+  if (base && head) {
+    return `git diff ${base}...${head}`;
+  }
+  if (head) {
+    return `git diff $(git merge-base ${head} ${defaultBranch})...${head}`;
+  }
+  // base only — diff from base to current HEAD
+  return `git diff ${base}...HEAD`;
+}
+
+function localDiffCommand(target: DiffTarget, defaultBranch: string): string {
   switch (target) {
     case "staged":
       return "git diff --cached";
@@ -36,7 +78,7 @@ function localDiffCommand(target: DiffTarget): string {
     case "all":
       return "git diff HEAD";
     case "branch":
-      return "git diff $(git merge-base HEAD main)...HEAD";
+      return `git diff $(git merge-base HEAD ${defaultBranch})...HEAD`;
     case "commits":
       return "git diff HEAD~1...HEAD";
   }

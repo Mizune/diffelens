@@ -50,6 +50,38 @@ npx tsx src/main.ts
 
 When GITHUB_TOKEN is not set, the summary is printed to stdout.
 
+## Local Mode
+
+```bash
+# Review staged + unstaged changes (default)
+npx tsx src/main.ts
+
+# Review current branch diff against main
+npx tsx src/main.ts --diff-target branch
+
+# Review up to a specific commit
+npx tsx src/main.ts --head abc1234
+
+# Review a specific commit range
+npx tsx src/main.ts --base def5678 --head abc1234
+
+# Review from a specific base to current HEAD
+npx tsx src/main.ts --base def5678
+```
+
+### CLI Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--diff-target` | `staged` / `unstaged` / `all` / `branch` / `commits` | `all` |
+| `--base <ref>` | Base git ref for diff range | merge-base with main |
+| `--head <ref>` | Head git ref for diff range | current HEAD |
+| `--config <path>` | Config file path | `.ai-review.yaml` |
+| `--state-dir <path>` | State directory | `.ai-review-state` |
+| `--mode` | `github` / `local` | auto-detect |
+
+> When `--base` or `--head` is provided, `--diff-target` is ignored.
+
 ## Configuration
 
 Place `.ai-review.yaml` at the repository root. Each lens can be configured with its own CLI, model, and tool permissions.
