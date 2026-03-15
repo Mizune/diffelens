@@ -36,15 +36,7 @@ jobs:
       - name: Install orchestrator dependencies
         run: npm ci
 
-      # Restore state from previous round
-      - name: Download review state
-        uses: actions/download-artifact@v4
-        with:
-          name: review-state-pr-${{ github.event.pull_request.number }}
-          path: .ai-review-state/
-        continue-on-error: true
-
-      # Run review
+      # Run review (state is persisted in the PR comment)
       - name: Run AI Review
         run: npx tsx src/main.ts
         env:
@@ -57,11 +49,3 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
-
-      # Save state (used in next round)
-      - name: Upload review state
-        uses: actions/upload-artifact@v4
-        with:
-          name: review-state-pr-${{ github.event.pull_request.number }}
-          path: .ai-review-state/
-          overwrite: true

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { updateState, linesOverlap, generateFindingId } from "../state/review-state.js";
+import { updateState, linesOverlap, generateFindingId, advanceRoundIfNeeded } from "../state/review-state.js";
 import type { ReviewState } from "../state/review-state.js";
 import type { Finding } from "../adapters/types.js";
 
@@ -60,6 +60,29 @@ describe("generateFindingId", () => {
     expect(generateFindingId("readability", 0)).toBe("r-001");
     expect(generateFindingId("architectural", 4)).toBe("a-005");
     expect(generateFindingId("bug_risk", 99)).toBe("b-100");
+  });
+});
+
+describe("advanceRoundIfNeeded", () => {
+  it("increments round when head_sha changes", () => {
+    const state = makeState({ current_round: 1, head_sha: "aaa" });
+    const result = advanceRoundIfNeeded(state, "bbb");
+    expect(result.current_round).toBe(2);
+    expect(result.head_sha).toBe("bbb");
+  });
+
+  it("returns same state when head_sha is unchanged", () => {
+    const state = makeState({ current_round: 1, head_sha: "aaa" });
+    const result = advanceRoundIfNeeded(state, "aaa");
+    expect(result.current_round).toBe(1);
+    expect(result).toBe(state); // same reference
+  });
+
+  it("does not mutate original state", () => {
+    const state = makeState({ current_round: 1, head_sha: "aaa" });
+    advanceRoundIfNeeded(state, "bbb");
+    expect(state.current_round).toBe(1);
+    expect(state.head_sha).toBe("aaa");
   });
 });
 

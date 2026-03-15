@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { ReviewState } from "../state/review-state.js";
 import type { ReviewDecision } from "../convergence.js";
-import { renderSummary, MARKER } from "./summary-renderer.js";
+import { renderSummary, MARKER, embedState, extractState } from "./summary-renderer.js";
 
 // ============================================================
 // GitHub API: post and update summary comments
@@ -26,7 +26,31 @@ export function parseRepo(): { owner: string; repo: string } {
 }
 
 /**
+ * Load review state from the existing summary comment.
+ * Returns null if no comment or no embedded state found.
+ */
+export async function loadStateFromComment(
+  prNumber: number
+): Promise<ReviewState | null> {
+  const octokit = getOctokit();
+  const { owner, repo } = parseRepo();
+
+  const commentId = await findSummaryComment(octokit, owner, repo, prNumber);
+  if (!commentId) return null;
+
+  const { data: comment } = await octokit.issues.getComment({
+    owner,
+    repo,
+    comment_id: commentId,
+  });
+
+  if (!comment.body) return null;
+  return extractState(comment.body);
+}
+
+/**
  * Post or update a summary comment (search for existing by marker).
+ * Embeds review state as a hidden marker for cross-round persistence.
  */
 export async function upsertSummaryComment(
   prNumber: number,
@@ -35,7 +59,8 @@ export async function upsertSummaryComment(
 ): Promise<void> {
   const octokit = getOctokit();
   const { owner, repo } = parseRepo();
-  const body = renderSummary(state, decision);
+  const rendered = renderSummary(state, decision);
+  const body = embedState(rendered, state);
 
   // Search for existing summary comment
   const existingCommentId = await findSummaryComment(
@@ -95,7 +120,7 @@ export async function postEscalationComment(
     (f) => f.status === "open" && f.severity === "blocker"
   );
 
-  const body = [
+  const rendered = [
     MARKER,
     `## 🚨 AI Review — Escalated`,
     "",
@@ -110,6 +135,7 @@ export async function postEscalationComment(
         `- **[${f.id}]** \`${f.file}:${f.line_start}\` — ${f.summary}`
     ),
   ].join("\n");
+  const body = embedState(rendered, state);
 
   const existingCommentId = await findSummaryComment(
     octokit,

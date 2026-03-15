@@ -56,14 +56,6 @@ jobs:
       - name: Install orchestrator dependencies
         run: npm ci
 
-      # Restore state from previous round
-      - name: Download review state
-        uses: actions/download-artifact@v4
-        with:
-          name: review-state-pr-${{ github.event.pull_request.number }}
-          path: .ai-review-state/
-        continue-on-error: true
-
       - name: Run AI Review
         run: npx tsx src/main.ts
         env:
@@ -74,14 +66,6 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
-
-      # Save state for next round
-      - name: Upload review state
-        uses: actions/upload-artifact@v4
-        with:
-          name: review-state-pr-${{ github.event.pull_request.number }}
-          path: .ai-review-state/
-          overwrite: true
 ```
 
 ### Gemini Workflow
@@ -154,13 +138,13 @@ See [Local Mode Guide — Configuration](./local-mode.md#configuration) for full
 
 ## State Management
 
-diffelens uses **GitHub Actions artifacts** for cross-round state persistence:
+diffelens uses **comment-embedded state** for cross-round persistence in GitHub mode. Review state is encoded as a hidden HTML marker (`<!-- ai-review-state: {base64} -->`) at the end of the summary comment. No artifacts or external storage are needed.
 
-1. **Download step**: restores `review_state.json` from a previous workflow run (if any)
-2. **Review step**: reads prior findings, runs lenses, deduplicates, and updates state
-3. **Upload step**: saves updated state as an artifact for the next round
+1. On each workflow run, diffelens searches for the existing summary comment
+2. If found, it extracts the embedded state and advances the round if `HEAD_SHA` changed
+3. After review, the updated state is re-embedded into the comment
 
-The artifact is named `review-state-pr-{number}` and uses `overwrite: true` to always keep the latest state.
+This approach is more reliable than GitHub Actions artifacts, which can silently fail on upload.
 
 ### How Rounds Work
 
@@ -208,13 +192,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Download review state
-        uses: actions/download-artifact@v4
-        with:
-          name: review-state-pr-${{ github.event.issue.number }}
-          path: .ai-review-state/
-        continue-on-error: true
-
       - name: Handle command
         run: npx tsx src/handle-command.ts
         env:
@@ -224,13 +201,6 @@ jobs:
           COMMAND_BODY: ${{ github.event.comment.body }}
           COMMAND_USER: ${{ github.event.comment.user.login }}
           COMMENT_ID: ${{ github.event.comment.id }}
-
-      - name: Upload review state
-        uses: actions/upload-artifact@v4
-        with:
-          name: review-state-pr-${{ github.event.issue.number }}
-          path: .ai-review-state/
-          overwrite: true
 ```
 
 ## Troubleshooting
@@ -264,10 +234,9 @@ Check that `fetch-depth: 0` is set in the checkout step. Without full history, `
 
 ### State Not Persisting
 
-Artifacts expire after 90 days by default. If state is lost between rounds, ensure:
-- The artifact name matches: `review-state-pr-{number}`
-- `overwrite: true` is set in the upload step
-- The download step has `continue-on-error: true` (first run has no artifact)
+Review state is embedded in the PR summary comment. If state is lost between rounds:
+- Ensure `GITHUB_TOKEN` has `pull-requests: write` permission
+- Check that the summary comment (with `<!-- ai-review-summary -->` marker) exists and hasn't been deleted
 
 ### Lenses Skipped
 
