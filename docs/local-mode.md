@@ -1,0 +1,217 @@
+# Local Mode Guide
+
+Run diffelens locally to review your changes before pushing.
+
+## Prerequisites
+
+- **Node.js 20+**
+- At least one CLI tool installed:
+
+| CLI | Install | API Key |
+|-----|---------|---------|
+| Claude Code | `npm install -g @anthropic-ai/claude-code` | `ANTHROPIC_API_KEY` |
+| Codex CLI | `npm install -g @openai/codex` | `OPENAI_API_KEY` |
+| Gemini CLI | `npm install -g @google/gemini-cli` | `GEMINI_API_KEY` |
+
+## Setup
+
+```bash
+# Clone and install
+git clone https://github.com/Mizune/diffelens.git
+cd diffelens
+npm install
+
+# Set your API key
+export ANTHROPIC_API_KEY=sk-ant-xxx
+```
+
+## Usage
+
+### Basic Usage
+
+```bash
+# Review all staged + unstaged changes (default)
+npx tsx src/main.ts
+
+# Review current branch diff against main
+npx tsx src/main.ts --diff-target branch
+
+# Review only staged changes
+npx tsx src/main.ts --diff-target staged
+```
+
+### Commit Range
+
+```bash
+# Review a specific commit range
+npx tsx src/main.ts --base def5678 --head abc1234
+
+# Review from a specific base to current HEAD
+npx tsx src/main.ts --base def5678
+
+# Review up to a specific commit
+npx tsx src/main.ts --head abc1234
+```
+
+> When `--base` or `--head` is provided, `--diff-target` is ignored.
+
+### Test a Single Lens
+
+```bash
+npx tsx src/test-lens.ts readability
+npx tsx src/test-lens.ts architectural
+npx tsx src/test-lens.ts bug_risk
+```
+
+## CLI Options
+
+| Option | Description | Default |
+|--------|-------------|---------|
+| `--diff-target` | `staged` / `unstaged` / `all` / `branch` / `commits` | `all` |
+| `--base <ref>` | Base git ref for diff range | merge-base with main |
+| `--head <ref>` | Head git ref for diff range | current HEAD |
+| `--config <path>` | Config file path | `.ai-review.yaml` |
+| `--state-dir <path>` | State directory | `.ai-review-state` |
+| `--mode` | `github` / `local` (usually auto-detected) | auto-detect |
+
+## Configuration
+
+Place `.ai-review.yaml` at the repository root. If no config exists in the target repo, diffelens uses its own bundled default config.
+
+### Default Config (Claude Code)
+
+```yaml
+version: "1.0"
+
+global:
+  max_rounds: 4
+  language: "en"
+  default_cli: "claude"
+  timeout_ms: 120000
+
+lenses:
+  readability:
+    enabled: true
+    cli: "claude"
+    model: "claude-sonnet-4-6"
+    isolation: "tempdir"
+    tool_policy: "none"
+    timeout_ms: 300000
+    severity_cap: "warning"
+
+  architectural:
+    enabled: true
+    cli: "claude"
+    model: "claude-opus-4-6"
+    isolation: "repo"
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+    timeout_ms: 600000
+    severity_cap: "blocker"
+
+  bug_risk:
+    enabled: true
+    cli: "claude"
+    model: "claude-opus-4-6"
+    isolation: "repo"
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+    timeout_ms: 600000
+    severity_cap: "blocker"
+```
+
+### Gemini Config
+
+```yaml
+version: "1.0"
+
+global:
+  max_rounds: 2
+  default_cli: "gemini"
+  timeout_ms: 120000
+
+lenses:
+  readability:
+    enabled: true
+    cli: "gemini"
+    model: "gemini-2.5-flash"
+    isolation: "tempdir"
+    tool_policy: "none"
+    timeout_ms: 300000
+    severity_cap: "warning"
+
+  bug_risk:
+    enabled: true
+    cli: "gemini"
+    model: "gemini-2.5-flash"
+    isolation: "tempdir"
+    tool_policy: "none"
+    timeout_ms: 300000
+    severity_cap: "blocker"
+```
+
+### Key Config Fields
+
+| Field | Description |
+|-------|-------------|
+| `global.default_cli` | Default CLI for all lenses (`claude`, `codex`, `gemini`) |
+| `lenses.<name>.cli` | Per-lens CLI override |
+| `lenses.<name>.model` | Model name passed to the CLI |
+| `lenses.<name>.isolation` | `tempdir` (diff only) or `repo` (full repository access) |
+| `lenses.<name>.tool_policy` | `none`, `read_only`, or `{ type: "explicit", tools: [...] }` |
+| `lenses.<name>.severity_cap` | Maximum severity a lens can produce (`blocker`, `warning`, `nitpick`) |
+| `filters.exclude_patterns` | Glob patterns for files to exclude from the diff |
+
+## Custom Prompts
+
+Two mutually exclusive options per lens:
+
+**Option A — Full replacement:** provide your own prompt file.
+
+```yaml
+lenses:
+  readability:
+    prompt_file: "my-prompts/readability.md"
+```
+
+**Option B — Append to builtin prompt:** extend the default prompt with additional rules.
+
+```yaml
+lenses:
+  readability:
+    prompt_append_file: "extra-rules.md"
+```
+
+Custom lenses (names other than `readability`, `architectural`, `bug_risk`) always require `prompt_file`.
+
+## Convergence
+
+Controls how many rounds of review run and which severities are included per round.
+
+```yaml
+convergence:
+  round_severities:
+    - ["blocker", "warning", "nitpick"]   # round 1: all severities
+    - ["blocker", "warning"]              # round 2: drop nitpick
+    - ["blocker"]                         # round 3+: blockers only
+  approve_condition: "zero_blockers"
+```
+
+The legacy format (`round_1_severities`, `round_2_severities`, `round_3_severities`) is also supported.
+
+## Reading Output
+
+In local mode, the summary is printed to stdout. It includes:
+
+- **Decision**: `APPROVED`, `CHANGES REQUESTED`, or `ESCALATED`
+- **Severity counts**: blockers, warnings, nitpicks, resolved
+- **Findings**: grouped by severity with file location, summary, and suggestion
+- **Convergence hint**: re-run after fixing issues to check convergence
+
+Each finding shows:
+- `[id]` — unique identifier for the finding
+- `file:line` — source location
+- Summary and suggestion
+- Lens name and round info
