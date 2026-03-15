@@ -86,7 +86,7 @@ jobs:
 
 ### Gemini Workflow
 
-To use Gemini instead, install the Gemini CLI and set `CONFIG_PATH` to a Gemini-specific config:
+To use Gemini instead, install the Gemini CLI and set `default_cli: "gemini"` in `.ai-review.yaml`:
 
 ```yaml
       - name: Install Gemini CLI
@@ -101,10 +101,7 @@ To use Gemini instead, install the Gemini CLI and set `CONFIG_PATH` to a Gemini-
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CONFIG_PATH: ${{ github.workspace }}/ai-review-gemini.yaml
 ```
-
-See [`ai-review-gemini.yaml`](../ai-review-gemini.yaml) for an example Gemini config.
 
 ### Multi-CLI Workflow
 
