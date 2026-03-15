@@ -75,17 +75,7 @@ export async function loadOrCreateState(
     try {
       const content = await readFile(filePath, "utf-8");
       const state = JSON.parse(content) as ReviewState;
-
-      // If head_sha changed, start a new round (return new object immutably)
-      if (state.head_sha !== headSha) {
-        return {
-          ...state,
-          current_round: state.current_round + 1,
-          head_sha: headSha,
-        };
-      }
-
-      return state;
+      return advanceRoundIfNeeded(state, headSha);
     } catch {
       console.warn(`Failed to parse state file, creating new state`);
     }
@@ -94,7 +84,7 @@ export async function loadOrCreateState(
   return createInitialState(prNumber, baseSha, headSha, maxRounds);
 }
 
-function createInitialState(
+export function createInitialState(
   prNumber: number,
   baseSha: string,
   headSha: string,
@@ -112,6 +102,21 @@ function createInitialState(
     round_history: [],
     decisions: [],
   };
+}
+
+/** Advance round if head_sha changed (immutable) */
+export function advanceRoundIfNeeded(
+  state: ReviewState,
+  headSha: string
+): ReviewState {
+  if (state.head_sha !== headSha) {
+    return {
+      ...state,
+      current_round: state.current_round + 1,
+      head_sha: headSha,
+    };
+  }
+  return state;
 }
 
 /** Update state with new findings (immutable) */

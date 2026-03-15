@@ -4,6 +4,8 @@ import { loadConfig, loadConfigWithFallback } from "./config.js";
 import { runLens, type LensRunResult } from "./lens-runner.js";
 import {
   loadOrCreateState,
+  createInitialState,
+  advanceRoundIfNeeded,
   updateState,
   saveState,
 } from "./state/review-state.js";
@@ -15,6 +17,7 @@ import {
 import {
   upsertSummaryComment,
   postEscalationComment,
+  loadStateFromComment,
 } from "./output/github-client.js";
 import { checkAvailability, type Finding } from "./adapters/index.js";
 import { filterDiffByExcludePatterns } from "./filters.js";
@@ -102,13 +105,28 @@ export async function main(options?: RunOptions) {
   }
 
   // 4. Previous round state
-  const state = await loadOrCreateState(
-    opts.stateDir,
-    opts.prNumber,
-    baseSha,
-    headSha,
-    config.global.max_rounds
-  );
+  let state: Awaited<ReturnType<typeof loadOrCreateState>>;
+  if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
+    // GitHub mode: load state from PR comment
+    let commentState: Awaited<ReturnType<typeof loadStateFromComment>> = null;
+    try {
+      commentState = await loadStateFromComment(opts.prNumber);
+    } catch (e) {
+      console.warn(`  Failed to load state from comment, starting fresh: ${e}`);
+    }
+    state = commentState
+      ? advanceRoundIfNeeded(commentState, headSha)
+      : createInitialState(opts.prNumber, baseSha, headSha, config.global.max_rounds);
+  } else {
+    // Local mode: load state from file
+    state = await loadOrCreateState(
+      opts.stateDir,
+      opts.prNumber,
+      baseSha,
+      headSha,
+      config.global.max_rounds
+    );
+  }
   console.log(`Round: ${state.current_round}/${state.max_rounds}`);
   console.log(
     `  Previous findings: ${state.findings.length} (open: ${state.findings.filter((f) => f.status === "open").length})\n`
@@ -117,10 +135,12 @@ export async function main(options?: RunOptions) {
   // 5. Convergence check (max_rounds exceeded)
   if (state.current_round > state.max_rounds) {
     console.log("Max rounds exceeded. Escalating to human reviewer.");
-    if (opts.mode === "github") {
+    if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
       await postEscalationComment(opts.prNumber, state);
     }
-    await saveState(opts.stateDir, state);
+    if (opts.mode === "local") {
+      await saveState(opts.stateDir, state);
+    }
     return;
   }
 
@@ -223,8 +243,10 @@ export async function main(options?: RunOptions) {
     console.log(renderSummary(newState, decision, opts.mode));
   }
 
-  // 13. Save state
-  await saveState(opts.stateDir, newState);
+  // 13. Save state (local mode only; GitHub mode persists via comment)
+  if (opts.mode === "local") {
+    await saveState(opts.stateDir, newState);
+  }
 
   console.log("\nAI Review — Done.");
 }
