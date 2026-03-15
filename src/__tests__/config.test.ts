@@ -4,7 +4,6 @@ import { writeFile, mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
-const configPath = join(import.meta.dirname, "../../.ai-review.yaml");
 
 let tempDirs: string[] = [];
 
@@ -41,9 +40,59 @@ filters:
   exclude_patterns: []
 `;
 
+const FULL_YAML = `
+version: "1.0"
+global:
+  max_rounds: 4
+  language: "en"
+  default_cli: "claude"
+  timeout_ms: 120000
+lenses:
+  readability:
+    enabled: true
+    cli: "claude"
+    model: "claude-sonnet-4-6"
+    isolation: "tempdir"
+    tool_policy: "none"
+    timeout_ms: 300000
+    severity_cap: "warning"
+  architectural:
+    enabled: true
+    cli: "claude"
+    model: "claude-opus-4-6"
+    isolation: "repo"
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+    timeout_ms: 600000
+    severity_cap: "blocker"
+  bug_risk:
+    enabled: true
+    cli: "claude"
+    model: "claude-opus-4-6"
+    isolation: "repo"
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+    timeout_ms: 600000
+    severity_cap: "blocker"
+filters:
+  exclude_patterns:
+    - "**/*.lock"
+    - "**/node_modules/**"
+convergence:
+  round_severities:
+    - ["blocker", "warning", "nitpick"]
+    - ["blocker", "warning", "nitpick"]
+    - ["blocker", "warning"]
+    - ["blocker"]
+  approve_condition: "zero_blockers"
+`;
+
 describe("loadConfig", () => {
   it("loads and parses the config file", async () => {
-    const config = await loadConfig(configPath);
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
 
     expect(config.global.max_rounds).toBe(4);
     expect(config.global.language).toBe("en");
@@ -51,7 +100,8 @@ describe("loadConfig", () => {
   });
 
   it("loads all enabled lenses", async () => {
-    const config = await loadConfig(configPath);
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
 
     expect(config.lenses).toHaveLength(3);
     const names = config.lenses.map((l) => l.name);
@@ -61,13 +111,15 @@ describe("loadConfig", () => {
   });
 
   it("applies severity_cap from config", async () => {
-    const config = await loadConfig(configPath);
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
     const readability = config.lenses.find((l) => l.name === "readability");
     expect(readability?.severityCap).toBe("warning");
   });
 
   it("normalizes tool_policy", async () => {
-    const config = await loadConfig(configPath);
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
     const readability = config.lenses.find((l) => l.name === "readability");
     expect(readability?.toolPolicy).toEqual({ type: "none" });
 
@@ -79,7 +131,8 @@ describe("loadConfig", () => {
   });
 
   it("loads convergence settings (new round_severities format)", async () => {
-    const config = await loadConfig(configPath);
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
     expect(config.convergence.approve_condition).toBe("zero_blockers");
     expect(config.convergence.round_severities).toEqual([
       ["blocker", "warning", "nitpick"],
@@ -90,7 +143,8 @@ describe("loadConfig", () => {
   });
 
   it("loads exclude_patterns", async () => {
-    const config = await loadConfig(configPath);
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
     expect(config.filters.exclude_patterns).toContain("**/*.lock");
   });
 });

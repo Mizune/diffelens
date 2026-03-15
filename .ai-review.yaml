@@ -6,14 +6,14 @@ version: "1.0"
 global:
   max_rounds: 4
   language: "en"
-  default_cli: "claude"     # "claude", "codex", or "gemini"
-  timeout_ms: 120000        # 2 minutes
+  default_cli: "gemini"    # "claude", "codex", or "gemini"
+  timeout_ms: 120000       # 2 minutes
 
 lenses:
   readability:
     enabled: true
-    cli: "claude"
-    model: "claude-sonnet-4-6"
+    cli: "gemini"
+    model: "gemini-2.5-flash"
     isolation: "tempdir"     # diff only (no repository exploration)
     tool_policy: "none"      # no tools
     timeout_ms: 300000       # 5 minutes
@@ -21,23 +21,19 @@ lenses:
 
   architectural:
     enabled: true
-    cli: "claude"
-    model: "claude-opus-4-6"
+    cli: "gemini"
+    model: "gemini-2.5-flash"
     isolation: "repo"        # runs in repository (exploration enabled)
-    tool_policy:
-      type: "explicit"
-      tools: ["Read", "Grep", "Glob"]
+    tool_policy: "none"      # gemini --yolo enables all tools regardless
     timeout_ms: 600000       # 10 minutes
     severity_cap: "blocker"
 
   bug_risk:
     enabled: true
-    cli: "claude"
-    model: "claude-opus-4-6"
+    cli: "gemini"
+    model: "gemini-2.5-flash"
     isolation: "repo"
-    tool_policy:
-      type: "explicit"
-      tools: ["Read", "Grep", "Glob"]
+    tool_policy: "none"      # gemini --yolo enables all tools regardless
     timeout_ms: 600000       # 10 minutes
     severity_cap: "blocker"
 
