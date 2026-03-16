@@ -14,7 +14,10 @@ export function getOctokit(): Octokit {
   if (!octokitInstance) {
     const token = process.env.GITHUB_TOKEN;
     if (!token) throw new Error("GITHUB_TOKEN is not set");
-    octokitInstance = new Octokit({ auth: token });
+    octokitInstance = new Octokit({
+      auth: token,
+      baseUrl: process.env.GITHUB_API_URL || "https://api.github.com",
+    });
   }
   return octokitInstance;
 }
