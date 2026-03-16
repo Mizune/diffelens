@@ -37,6 +37,7 @@ Multi-lens AI PR review orchestrator. Uses Claude Code CLI / Codex CLI as the ex
 - Config path: `--config` arg → `CONFIG_PATH` env var → `.diffelens.yaml` (cwd)
 - Local mode fallback: diffelens bundled `.diffelens.yaml` if repo has none
 - **Local overlay**: `.diffelens.local.yaml` is auto-detected in local mode and deep-merged over the base config. Only specified fields are overridden. Skipped when `--config` is explicitly provided. Use this to run different CLI/model settings locally (e.g., Claude Opus) vs CI (e.g., Gemini Flash)
+- **API proxy**: `global.base_url` or per-lens `base_url` sets CLI-specific env vars (`ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL`, `GEMINI_API_BASE_URL`)
 - Convergence: `round_severities` array (N rounds) or legacy `round_N_severities` (auto-normalized)
 
 ## Commands
