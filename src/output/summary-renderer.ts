@@ -1,5 +1,6 @@
 import type { ReviewState, StateFinding } from "../state/review-state.js";
 import type { ReviewDecision } from "../convergence.js";
+import type { DiffStats } from "../diff.js";
 
 // ============================================================
 // Generate Markdown summary for posting to PR
@@ -7,10 +8,25 @@ import type { ReviewDecision } from "../convergence.js";
 
 const MARKER = "<!-- diffelens-summary -->";
 
+export interface LensStat {
+  name: string;
+  cli: string;
+  durationMs: number;
+  success: boolean;
+  assessment: string | null;
+  exploredFiles: number | null;
+}
+
+export interface ReviewScope {
+  diffStats: DiffStats;
+  lensStats: LensStat[];
+}
+
 export function renderSummary(
   state: ReviewState,
   decision: ReviewDecision,
-  mode: "github" | "local" = "github"
+  mode: "github" | "local" = "github",
+  scope?: ReviewScope
 ): string {
   const open = state.findings.filter((f) => f.status === "open");
   const blockers = open.filter((f) => f.severity === "blocker");
@@ -39,6 +55,11 @@ export function renderSummary(
     `| ✅ Resolved | ${resolved.length} |`,
     "",
   ];
+
+  // Review Scope (collapsible)
+  if (scope) {
+    lines.push(...renderScope(scope));
+  }
 
   // Blockers
   if (blockers.length > 0) {
@@ -117,6 +138,47 @@ export function renderSummary(
   }
 
   return lines.join("\n");
+}
+
+function renderScope(scope: ReviewScope): string[] {
+  const { diffStats, lensStats } = scope;
+  const successCount = lensStats.filter((l) => l.success).length;
+  const total = lensStats.length;
+
+  const lensLabel = successCount === total
+    ? `${total} lenses`
+    : `${successCount}/${total} lenses`;
+
+  const summaryText = `${lensLabel} reviewed ${diffStats.files} files (+${diffStats.additions} -${diffStats.deletions})`;
+
+  const lines: string[] = [
+    `<details><summary>📋 ${summaryText}</summary>`,
+    "",
+    "| Lens | CLI | Duration | Explored | Result |",
+    "|------|-----|----------|----------|--------|",
+  ];
+
+  for (const lens of lensStats) {
+    const duration = formatDuration(lens.durationMs);
+    const explored = lens.exploredFiles != null ? `${lens.exploredFiles} files` : "—";
+    const result = lens.success
+      ? formatAssessment(lens.assessment)
+      : "⚠️ error";
+    lines.push(`| ${lens.name} | ${lens.cli} | ${duration} | ${explored} | ${result} |`);
+  }
+
+  lines.push("", "</details>", "");
+
+  return lines;
+}
+
+function formatDuration(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
+}
+
+function formatAssessment(assessment: string | null): string {
+  if (!assessment) return "—";
+  return assessment.replace(/_/g, " ");
 }
 
 function renderFinding(f: StateFinding, currentRound: number): string[] {

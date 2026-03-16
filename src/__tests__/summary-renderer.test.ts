@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderSummary, MARKER } from "../output/summary-renderer.js";
+import { renderSummary, MARKER, type ReviewScope } from "../output/summary-renderer.js";
 import { embedState, extractState } from "../output/comment-state.js";
 import type { ReviewState } from "../state/review-state.js";
 
@@ -119,6 +119,49 @@ describe("renderSummary", () => {
     });
     const result = renderSummary(state, "request_changes");
     expect(result).toContain("use camelCase");
+  });
+});
+
+describe("renderSummary with ReviewScope", () => {
+  const scope: ReviewScope = {
+    diffStats: { files: 13, additions: 215, deletions: 3 },
+    lensStats: [
+      { name: "readability", cli: "gemini", durationMs: 12300, success: true, assessment: "clean", exploredFiles: null },
+      { name: "architectural", cli: "gemini", durationMs: 18500, success: true, assessment: "clean", exploredFiles: 8 },
+      { name: "bug_risk", cli: "gemini", durationMs: 21100, success: true, assessment: "minor_issues", exploredFiles: 5 },
+    ],
+  };
+
+  it("renders collapsible review scope section", () => {
+    const result = renderSummary(makeState(), "approve", "github", scope);
+    expect(result).toContain("<details>");
+    expect(result).toContain("3 lenses reviewed 13 files (+215 -3)");
+    expect(result).toContain("</details>");
+  });
+
+  it("renders per-lens stats table", () => {
+    const result = renderSummary(makeState(), "approve", "github", scope);
+    expect(result).toContain("| readability | gemini | 12.3s | — | clean |");
+    expect(result).toContain("| architectural | gemini | 18.5s | 8 files | clean |");
+    expect(result).toContain("| bug_risk | gemini | 21.1s | 5 files | minor issues |");
+  });
+
+  it("shows error for failed lens", () => {
+    const failedScope: ReviewScope = {
+      diffStats: { files: 5, additions: 100, deletions: 20 },
+      lensStats: [
+        { name: "readability", cli: "gemini", durationMs: 1200, success: false, assessment: null, exploredFiles: null },
+        { name: "architectural", cli: "gemini", durationMs: 15000, success: true, assessment: "clean", exploredFiles: 3 },
+      ],
+    };
+    const result = renderSummary(makeState(), "approve", "github", failedScope);
+    expect(result).toContain("1/2 lenses reviewed 5 files (+100 -20)");
+    expect(result).toContain("⚠️ error");
+  });
+
+  it("omits scope section when not provided", () => {
+    const result = renderSummary(makeState(), "approve");
+    expect(result).not.toContain("lenses reviewed");
   });
 });
 

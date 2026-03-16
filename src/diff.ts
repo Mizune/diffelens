@@ -3,8 +3,33 @@ import { createHash } from "crypto";
 import type { RunOptions, DiffTarget } from "./options.js";
 
 // ============================================================
-// Diff Fetching + Hashing
+// Diff Fetching + Hashing + Stats
 // ============================================================
+
+export interface DiffStats {
+  files: number;
+  additions: number;
+  deletions: number;
+}
+
+/** Parse unified diff to count files, additions, and deletions */
+export function parseDiffStats(diff: string): DiffStats {
+  let files = 0;
+  let additions = 0;
+  let deletions = 0;
+
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("diff --git ")) {
+      files++;
+    } else if (line.startsWith("+") && !line.startsWith("+++")) {
+      additions++;
+    } else if (line.startsWith("-") && !line.startsWith("---")) {
+      deletions++;
+    }
+  }
+
+  return { files, additions, deletions };
+}
 
 export function fetchDiff(options: RunOptions): string {
   const command = buildDiffCommand(options);
