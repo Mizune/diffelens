@@ -31,7 +31,11 @@ export class ClaudeCodeAdapter implements CLIAdapter {
     return new Promise((resolve) => {
       const child = spawn("claude", args, {
         cwd: request.cwd,
-        env: { ...process.env, CLAUDECODE: "" },
+        env: {
+          ...process.env,
+          CLAUDECODE: "",
+          ...(request.baseUrl ? { ANTHROPIC_BASE_URL: request.baseUrl } : {}),
+        },
         stdio: ["pipe", "pipe", "pipe"],
       });
 

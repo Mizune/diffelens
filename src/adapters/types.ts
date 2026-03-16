@@ -28,6 +28,9 @@ export interface CLIRequest {
 
   /** Timeout (ms) */
   timeoutMs: number;
+
+  /** Optional: API proxy base URL */
+  baseUrl?: string;
 }
 
 export type ToolPolicy =

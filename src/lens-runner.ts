@@ -53,6 +53,7 @@ export async function runLens(
       toolPolicy: config.toolPolicy,
       model: config.model,
       timeoutMs: config.timeoutMs,
+      baseUrl: config.baseUrl,
     };
 
     console.log(`    [${config.name}] Executing ${adapter.name} (${config.model})...`);

@@ -33,6 +33,7 @@ export class GeminiAdapter implements CLIAdapter {
         env: {
           ...process.env,
           GEMINI_SYSTEM_MD: request.systemPromptPath,
+          ...(request.baseUrl ? { GEMINI_API_BASE_URL: request.baseUrl } : {}),
         },
         stdio: ["pipe", "pipe", "pipe"],
       });

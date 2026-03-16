@@ -13,6 +13,7 @@ export interface GlobalConfig {
   language: string;
   default_cli: CLIName;
   timeout_ms: number;
+  base_url?: string;
 }
 
 export interface LensConfig {
@@ -26,6 +27,7 @@ export interface LensConfig {
   timeoutMs: number;
   isolation: "tempdir" | "repo";
   severityCap: "blocker" | "warning" | "nitpick";
+  baseUrl?: string;
 }
 
 export interface ConvergenceConfig {
@@ -66,6 +68,7 @@ interface RawLensConfig {
   severity_cap?: "blocker" | "warning" | "nitpick";
   prompt_file?: string;
   prompt_append_file?: string;
+  base_url?: string;
 }
 
 interface RawConfig {
@@ -75,6 +78,7 @@ interface RawConfig {
     language: string;
     default_cli: CLIName;
     timeout_ms: number;
+    base_url?: string;
   };
   lenses: Record<string, RawLensConfig>;
   convergence: RawConvergenceConfig;
@@ -85,9 +89,28 @@ export const LOCAL_CONFIG_FILENAME = ".diffelens.local.yaml";
 
 const BUILTIN_LENSES = new Set(["readability", "architectural", "bug_risk"]);
 
+/** Validate that a base_url is a valid http(s) URL */
+function validateBaseUrl(url: string, context: string): void {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      throw new Error(`${context}: base_url must use http:// or https://`);
+    }
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(`${context}: invalid base_url: "${url}"`);
+    }
+    throw e;
+  }
+}
+
 /** Normalize raw config into the final ReviewConfig */
 function normalizeRawConfig(raw: RawConfig): ReviewConfig {
   const lenses: LensConfig[] = [];
+
+  if (raw.global.base_url) {
+    validateBaseUrl(raw.global.base_url, "global");
+  }
 
   for (const [name, lens] of Object.entries(raw.lenses)) {
     if (!lens.enabled) continue;
@@ -104,6 +127,10 @@ function normalizeRawConfig(raw: RawConfig): ReviewConfig {
       throw new Error(
         `Custom lens "${name}" requires a prompt_file`
       );
+    }
+
+    if (lens.base_url) {
+      validateBaseUrl(lens.base_url, `lens "${name}"`);
     }
 
     const { promptFile, promptSource, promptAppendFile } = resolvePromptConfig(
@@ -124,6 +151,7 @@ function normalizeRawConfig(raw: RawConfig): ReviewConfig {
       timeoutMs: lens.timeout_ms ?? raw.global.timeout_ms,
       isolation: lens.isolation,
       severityCap: lens.severity_cap ?? "blocker",
+      baseUrl: lens.base_url ?? raw.global.base_url,
     });
   }
 
