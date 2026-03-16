@@ -19,6 +19,7 @@ Multi-lens AI PR review orchestrator using LLM CLI tools such as Claude Code / C
 - **State Management**: Findings tracked across rounds — comment-embedded (GitHub) or file-based (local)
 - **Convergence Control**: Round limit + progressive severity filtering prevents endless review loops
 - **CLI Abstraction**: Claude Code / Codex / Gemini can be swapped via adapter pattern
+- **Custom API Endpoints**: Proxy / base URL support per-lens or global for enterprise API gateways
 
 ## Quick Start
 

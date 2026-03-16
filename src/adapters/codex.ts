@@ -32,7 +32,10 @@ export class CodexAdapter implements CLIAdapter {
     return new Promise((resolve) => {
       const child = spawn("codex", args, {
         cwd: request.cwd,
-        env: { ...process.env },
+        env: {
+          ...process.env,
+          ...(request.baseUrl ? { OPENAI_BASE_URL: request.baseUrl } : {}),
+        },
         stdio: ["pipe", "pipe", "pipe"],
       });
 

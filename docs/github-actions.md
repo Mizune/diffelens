@@ -136,6 +136,32 @@ env:
 
 See [Local Mode Guide — Configuration](./local-mode.md#configuration) for full config reference.
 
+## Proxy / Custom API Endpoints
+
+To route LLM API calls through a proxy, set `base_url` in `.diffelens.yaml`:
+
+```yaml
+global:
+  base_url: "https://genai-gateway.corp.example.com/v1"
+```
+
+Alternatively, set the CLI-specific env var directly in the workflow step:
+
+```yaml
+      - name: Run AI Review
+        run: npx tsx src/main.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_BASE_URL: "https://genai-gateway.corp.example.com/v1"
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+```
+
+Config-based `base_url` takes precedence over ambient env vars (e.g., `ANTHROPIC_BASE_URL` set in the workflow). See [Local Mode — CLI-to-env-var mapping](./local-mode.md#cli-to-env-var-mapping) for the full mapping table.
+
 ## State Management
 
 diffelens uses **comment-embedded state** for cross-round persistence in GitHub mode. Review state is encoded as a hidden HTML marker (`<!-- diffelens-state: {base64} -->`) at the end of the summary comment. No artifacts or external storage are needed.

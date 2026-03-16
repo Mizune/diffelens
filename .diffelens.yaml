@@ -8,6 +8,7 @@ global:
   language: "en"
   default_cli: "gemini"    # "claude", "codex", or "gemini"
   timeout_ms: 120000       # 2 minutes
+  # base_url: "https://proxy.example.com"  # API proxy for all lenses
 
 lenses:
   readability:

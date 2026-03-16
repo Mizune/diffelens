@@ -302,6 +302,78 @@ describe("loadConfig convergence normalization", () => {
 });
 
 // ============================================================
+// base_url validation and propagation
+// ============================================================
+
+describe("loadConfig base_url", () => {
+  it("global base_url propagates to all lenses", async () => {
+    const path = await writeYamlConfig(BASE_YAML(`
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "tempdir"
+    tool_policy: "none"
+`, `  round_severities:
+    - ["blocker", "warning", "nitpick"]
+  approve_condition: "zero_blockers"
+`).replace(
+      'timeout_ms: 120000',
+      'timeout_ms: 120000\n  base_url: "https://proxy.example.com"'
+    ));
+
+    const config = await loadConfig(path);
+    const lens = config.lenses.find((l) => l.name === "readability")!;
+    expect(lens.baseUrl).toBe("https://proxy.example.com");
+  });
+
+  it("per-lens base_url overrides global", async () => {
+    const path = await writeYamlConfig(BASE_YAML(`
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "tempdir"
+    tool_policy: "none"
+    base_url: "https://lens-proxy.example.com"
+`, `  round_severities:
+    - ["blocker", "warning", "nitpick"]
+  approve_condition: "zero_blockers"
+`).replace(
+      'timeout_ms: 120000',
+      'timeout_ms: 120000\n  base_url: "https://global-proxy.example.com"'
+    ));
+
+    const config = await loadConfig(path);
+    const lens = config.lenses.find((l) => l.name === "readability")!;
+    expect(lens.baseUrl).toBe("https://lens-proxy.example.com");
+  });
+
+  it("no base_url yields undefined", async () => {
+    const path = await writeYamlConfig(BASE_YAML(MINIMAL_LENS));
+    const config = await loadConfig(path);
+    const lens = config.lenses.find((l) => l.name === "readability")!;
+    expect(lens.baseUrl).toBeUndefined();
+  });
+
+  it("invalid global base_url throws descriptive error", async () => {
+    const path = await writeYamlConfig(BASE_YAML(MINIMAL_LENS).replace(
+      'timeout_ms: 120000',
+      'timeout_ms: 120000\n  base_url: "not-a-url"'
+    ));
+
+    await expect(loadConfig(path)).rejects.toThrow('global: invalid base_url: "not-a-url"');
+  });
+
+  it("non-http(s) protocol throws", async () => {
+    const path = await writeYamlConfig(BASE_YAML(MINIMAL_LENS).replace(
+      'timeout_ms: 120000',
+      'timeout_ms: 120000\n  base_url: "ftp://proxy.example.com"'
+    ));
+
+    await expect(loadConfig(path)).rejects.toThrow("global: base_url must use http:// or https://");
+  });
+});
+
+// ============================================================
 // deepMergeRawConfig
 // ============================================================
 
@@ -419,6 +491,24 @@ describe("deepMergeRawConfig", () => {
     const merged = deepMergeRawConfig(base, overlay);
 
     expect(merged.lenses.readability.enabled).toBe(false);
+  });
+
+  it("merges global base_url from overlay", () => {
+    const base = makeRawConfig();
+    const overlay = { global: { base_url: "https://proxy.example.com" } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.global.base_url).toBe("https://proxy.example.com");
+    expect(merged.global.default_cli).toBe("gemini");
+  });
+
+  it("merges per-lens base_url from overlay", () => {
+    const base = makeRawConfig();
+    const overlay = { lenses: { readability: { base_url: "https://lens-proxy.example.com" } } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.lenses.readability.base_url).toBe("https://lens-proxy.example.com");
+    expect(merged.lenses.readability.model).toBe("gemini-2.5-flash");
   });
 
   it("does not mutate the base config", () => {

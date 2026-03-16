@@ -123,6 +123,7 @@ global:
   language: "en"
   default_cli: "claude"
   timeout_ms: 120000
+  # base_url: "https://proxy.example.com"
 
 lenses:
   readability:
@@ -166,6 +167,7 @@ global:
   max_rounds: 2
   default_cli: "gemini"
   timeout_ms: 120000
+  # base_url: "https://proxy.example.com"
 
 lenses:
   readability:
@@ -197,6 +199,8 @@ lenses:
 | `lenses.<name>.isolation` | `tempdir` (diff only) or `repo` (full repository access) |
 | `lenses.<name>.tool_policy` | `none`, `read_only`, or `{ type: "explicit", tools: [...] }` |
 | `lenses.<name>.severity_cap` | Maximum severity a lens can produce (`blocker`, `warning`, `nitpick`) |
+| `global.base_url` | API proxy base URL for all lenses |
+| `lenses.<name>.base_url` | Per-lens API proxy base URL (overrides global) |
 | `filters.exclude_patterns` | Glob patterns for files to exclude from the diff |
 
 ## Custom Prompts
@@ -220,6 +224,52 @@ lenses:
 ```
 
 Custom lenses (names other than `readability`, `architectural`, `bug_risk`) always require `prompt_file`.
+
+## Custom API Endpoints / Proxy
+
+Use `base_url` to route LLM API calls through a proxy (e.g., corporate API gateway).
+
+### Global proxy
+
+```yaml
+global:
+  default_cli: "claude"
+  base_url: "https://ai-proxy.corp.example.com"
+```
+
+### Per-lens override
+
+```yaml
+lenses:
+  readability:
+    cli: "claude"
+    base_url: "https://claude-proxy.example.com"
+  bug_risk:
+    cli: "codex"
+    base_url: "https://openai-proxy.example.com"
+```
+
+### Local overlay for proxy
+
+```yaml
+# .diffelens.local.yaml
+global:
+  base_url: "http://localhost:8080"
+```
+
+### Precedence
+
+```
+per-lens base_url > global base_url > ambient env var > CLI default
+```
+
+### CLI-to-env-var mapping
+
+| CLI | Env var set by diffelens |
+|-----|--------------------------|
+| Claude Code | `ANTHROPIC_BASE_URL` |
+| Codex | `OPENAI_BASE_URL` |
+| Gemini | `GEMINI_API_BASE_URL` |
 
 ## Convergence
 
