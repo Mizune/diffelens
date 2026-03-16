@@ -16,10 +16,61 @@ vi.mock("child_process", async (importOriginal) => {
   };
 });
 
-import { buildDiffCommand, buildRefDiffCommand, detectDefaultBranch } from "../diff.js";
+import { buildDiffCommand, buildRefDiffCommand, detectDefaultBranch, parseDiffStats } from "../diff.js";
 import { execSync } from "child_process";
 
 const mockedExecSync = vi.mocked(execSync);
+
+// ============================================================
+// parseDiffStats
+// ============================================================
+
+describe("parseDiffStats", () => {
+  it("counts files, additions, and deletions", () => {
+    const diff = [
+      "diff --git a/src/foo.ts b/src/foo.ts",
+      "--- a/src/foo.ts",
+      "+++ b/src/foo.ts",
+      "@@ -1,3 +1,4 @@",
+      " const a = 1;",
+      "-const b = 2;",
+      "+const b = 3;",
+      "+const c = 4;",
+      "diff --git a/src/bar.ts b/src/bar.ts",
+      "--- a/src/bar.ts",
+      "+++ b/src/bar.ts",
+      "@@ -1,2 +1,1 @@",
+      "-const x = 1;",
+      "-const y = 2;",
+      "+const x = 3;",
+    ].join("\n");
+
+    const stats = parseDiffStats(diff);
+    expect(stats.files).toBe(2);
+    expect(stats.additions).toBe(3);
+    expect(stats.deletions).toBe(3);
+  });
+
+  it("returns zeros for empty diff", () => {
+    const stats = parseDiffStats("");
+    expect(stats).toEqual({ files: 0, additions: 0, deletions: 0 });
+  });
+
+  it("does not count --- and +++ as additions/deletions", () => {
+    const diff = [
+      "diff --git a/file.ts b/file.ts",
+      "--- a/file.ts",
+      "+++ b/file.ts",
+      "@@ -1,1 +1,1 @@",
+      "-old line",
+      "+new line",
+    ].join("\n");
+
+    const stats = parseDiffStats(diff);
+    expect(stats.additions).toBe(1);
+    expect(stats.deletions).toBe(1);
+  });
+});
 
 // ============================================================
 // validateGitRef
