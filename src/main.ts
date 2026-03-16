@@ -23,9 +23,10 @@ import {
 import { checkAvailability, type Finding } from "./adapters/index.js";
 import { filterDiffByExcludePatterns } from "./filters.js";
 import { resolveOptions, type RunOptions } from "./options.js";
-import { fetchDiff, hashDiff, resolveGitRef } from "./diff.js";
+import { fetchDiff, hashDiff, resolveGitRef, parseDiffStats } from "./diff.js";
 import { collectProjectContext, formatProjectContext } from "./project-context.js";
 import { resolvePrompt, validatePrompts } from "./prompt-resolver.js";
+import type { ReviewScope, LensStat } from "./output/summary-renderer.js";
 
 // ============================================================
 // AI PR Review Orchestrator
@@ -196,8 +197,9 @@ export async function main(options?: RunOptions) {
     })
   );
 
-  // 7. Collect results
+  // 7. Collect results + build lens stats for review scope
   const allFindings: Finding[] = [];
+  const lensStats: LensStat[] = [];
   for (const result of results) {
     if (result.status === "fulfilled") {
       const r = result.value;
@@ -212,6 +214,14 @@ export async function main(options?: RunOptions) {
       if (r.error) {
         console.error(`    Error: ${r.error}`);
       }
+      lensStats.push({
+        name: r.lens,
+        cli: r.cli,
+        durationMs: r.durationMs,
+        success: r.success,
+        assessment: r.output?.overall_assessment ?? null,
+        exploredFiles: r.output?.explored_files?.length ?? null,
+      });
     } else {
       console.error(`  x Lens failed:`, result.reason);
     }
@@ -247,18 +257,24 @@ export async function main(options?: RunOptions) {
   const decision = checkConvergence(newState, config.convergence);
   console.log(`Decision: ${decision}`);
 
-  // 12. Output: GitHub API for github mode with token, stdout otherwise
+  // 12. Build review scope for summary
+  const scope: ReviewScope = {
+    diffStats: parseDiffStats(diff),
+    lensStats,
+  };
+
+  // 13. Output: GitHub API for github mode with token, stdout otherwise
   if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
-    await upsertSummaryComment(opts.prNumber, newState, decision);
+    await upsertSummaryComment(opts.prNumber, newState, decision, scope);
   } else {
     const { renderSummary } = await import(
       "./output/summary-renderer.js"
     );
     console.log("\n--- Summary ---");
-    console.log(renderSummary(newState, decision, opts.mode));
+    console.log(renderSummary(newState, decision, opts.mode, scope));
   }
 
-  // 13. Save state (local mode only; GitHub mode persists via comment)
+  // 14. Save state (local mode only; GitHub mode persists via comment)
   if (opts.mode === "local") {
     await saveState(opts.stateDir, newState);
   }

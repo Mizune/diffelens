@@ -1,7 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { ReviewState } from "../state/review-state.js";
 import type { ReviewDecision } from "../convergence.js";
-import { renderSummary, MARKER } from "./summary-renderer.js";
+import { renderSummary, MARKER, type ReviewScope } from "./summary-renderer.js";
 import { embedState, extractState } from "./comment-state.js";
 
 // ============================================================
@@ -56,11 +56,12 @@ export async function loadStateFromComment(
 export async function upsertSummaryComment(
   prNumber: number,
   state: ReviewState,
-  decision: ReviewDecision
+  decision: ReviewDecision,
+  scope?: ReviewScope
 ): Promise<void> {
   const octokit = getOctokit();
   const { owner, repo } = parseRepo();
-  const rendered = renderSummary(state, decision);
+  const rendered = renderSummary(state, decision, "github", scope);
   const body = embedState(rendered, state);
 
   // Search for existing summary comment
