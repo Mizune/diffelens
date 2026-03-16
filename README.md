@@ -46,7 +46,7 @@ npx tsx src/test-lens.ts readability
 ```
 src/
 ├── main.ts              # Orchestrator
-├── config.ts            # .ai-review.yaml loader + validation
+├── config.ts            # .diffelens.yaml loader + validation
 ├── options.ts           # CLI arg parsing + mode detection
 ├── diff.ts              # Diff fetching + hashing
 ├── lens-runner.ts       # Lens execution (CLI invocation)
@@ -57,7 +57,7 @@ src/
 ├── deduplicator.ts      # Finding deduplication
 ├── convergence.ts       # Convergence logic + per-round severity filter
 ├── test-lens.ts         # Single lens test runner
-├── handle-command.ts    # /ai-review dismiss command handler
+├── handle-command.ts    # /diffelens dismiss command handler
 ├── adapters/
 │   ├── types.ts         # Shared interfaces
 │   ├── claude-code.ts   # Claude Code CLI adapter

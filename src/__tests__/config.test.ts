@@ -10,7 +10,7 @@ let tempDirs: string[] = [];
 async function writeYamlConfig(yaml: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "diffelens-cfg-test-"));
   tempDirs.push(dir);
-  const path = join(dir, ".ai-review.yaml");
+  const path = join(dir, ".diffelens.yaml");
   await writeFile(path, yaml, "utf-8");
   return path;
 }
@@ -445,8 +445,8 @@ describe("loadConfigWithLocalOverlay", () => {
     const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
     tempDirs.push(dir);
 
-    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
-    await writeYamlFile(dir, ".ai-review.local.yaml", `
+    await writeYamlFile(dir, ".diffelens.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".diffelens.local.yaml", `
 global:
   default_cli: "claude"
 lenses:
@@ -455,8 +455,8 @@ lenses:
     model: "claude-opus-4-6"
 `);
 
-    const basePath = join(dir, ".ai-review.yaml");
-    const localPath = join(dir, ".ai-review.local.yaml");
+    const basePath = join(dir, ".diffelens.yaml");
+    const localPath = join(dir, ".diffelens.local.yaml");
     const { config, localOverlayApplied } = await loadConfigWithLocalOverlay(basePath, localPath);
 
     expect(localOverlayApplied).toBe(true);
@@ -474,10 +474,10 @@ lenses:
     const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
     tempDirs.push(dir);
 
-    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".diffelens.yaml", FULL_YAML);
 
-    const basePath = join(dir, ".ai-review.yaml");
-    const localPath = join(dir, ".ai-review.local.yaml");
+    const basePath = join(dir, ".diffelens.yaml");
+    const localPath = join(dir, ".diffelens.local.yaml");
     const { config, localOverlayApplied } = await loadConfigWithLocalOverlay(basePath, localPath);
 
     expect(localOverlayApplied).toBe(false);
@@ -489,15 +489,15 @@ lenses:
     const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
     tempDirs.push(dir);
 
-    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
-    await writeYamlFile(dir, ".ai-review.local.yaml", `
+    await writeYamlFile(dir, ".diffelens.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".diffelens.local.yaml", `
 convergence:
   round_severities: []
   approve_condition: "zero_blockers"
 `);
 
-    const basePath = join(dir, ".ai-review.yaml");
-    const localPath = join(dir, ".ai-review.local.yaml");
+    const basePath = join(dir, ".diffelens.yaml");
+    const localPath = join(dir, ".diffelens.local.yaml");
     await expect(loadConfigWithLocalOverlay(basePath, localPath)).rejects.toThrow(
       "round_severities must not be empty"
     );
@@ -507,16 +507,16 @@ convergence:
     const dir = await mkdtemp(join(tmpdir(), "diffelens-overlay-test-"));
     tempDirs.push(dir);
 
-    await writeYamlFile(dir, ".ai-review.yaml", FULL_YAML);
-    await writeYamlFile(dir, ".ai-review.local.yaml", `
+    await writeYamlFile(dir, ".diffelens.yaml", FULL_YAML);
+    await writeYamlFile(dir, ".diffelens.local.yaml", `
 lenses:
   bug_risk:
     cli: "gemini"
     model: "gemini-2.5-pro"
 `);
 
-    const basePath = join(dir, ".ai-review.yaml");
-    const localPath = join(dir, ".ai-review.local.yaml");
+    const basePath = join(dir, ".diffelens.yaml");
+    const localPath = join(dir, ".diffelens.local.yaml");
     const { config } = await loadConfigWithLocalOverlay(basePath, localPath);
 
     const bugRisk = config.lenses.find((l) => l.name === "bug_risk");

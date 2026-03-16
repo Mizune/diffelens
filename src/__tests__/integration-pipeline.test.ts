@@ -138,7 +138,7 @@ function makeInitialState(): ReviewState {
   };
 }
 
-const CONFIG_PATH = join(import.meta.dirname, "../../.ai-review.yaml");
+const CONFIG_PATH = join(import.meta.dirname, "../../.diffelens.yaml");
 
 // ============================================================
 // globToRegex

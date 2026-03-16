@@ -12,7 +12,7 @@ jobs:
   handle-command:
     if: |
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/ai-review')
+      startsWith(github.event.comment.body, '/diffelens')
     runs-on: ubuntu-latest
     timeout-minutes: 2
 
@@ -30,7 +30,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: review-state-pr-${{ github.event.issue.number }}
-          path: .ai-review-state/
+          path: .diffelens-state/
         continue-on-error: true
 
       - name: Handle command
@@ -47,5 +47,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: review-state-pr-${{ github.event.issue.number }}
-          path: .ai-review-state/
+          path: .diffelens-state/
           overwrite: true

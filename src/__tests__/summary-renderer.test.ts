@@ -160,7 +160,7 @@ describe("embedState / extractState", () => {
   });
 
   it("returns null for malformed base64", () => {
-    const body = "## Summary\n<!-- ai-review-state: !!!invalid!!! -->";
+    const body = "## Summary\n<!-- diffelens-state: !!!invalid!!! -->";
     expect(extractState(body)).toBeNull();
   });
 
@@ -171,7 +171,7 @@ describe("embedState / extractState", () => {
 
     expect(embedded).toContain("## Summary");
     expect(embedded).toContain("Content");
-    expect(embedded).toContain("<!-- ai-review-state: ");
+    expect(embedded).toContain("<!-- diffelens-state: ");
   });
 
   it("handles state with unicode content", () => {

@@ -52,7 +52,7 @@ export async function main(options?: RunOptions) {
   let config;
   if (opts.mode === "local" && !opts.configExplicit) {
     // Local mode without explicit --config: resolve base config (with fallback) + local overlay
-    const fallbackConfigPath = join(opts.diffelensRoot, ".ai-review.yaml");
+    const fallbackConfigPath = join(opts.diffelensRoot, ".diffelens.yaml");
     const basePath = existsSync(opts.configPath) ? opts.configPath : fallbackConfigPath;
     const localPath = join(opts.repoRoot, LOCAL_CONFIG_FILENAME);
     const result = await loadConfigWithLocalOverlay(basePath, localPath);
@@ -62,7 +62,7 @@ export async function main(options?: RunOptions) {
     }
   } else if (opts.mode === "local") {
     // Local mode with explicit --config: use that file only, no overlay
-    const fallbackConfigPath = join(opts.diffelensRoot, ".ai-review.yaml");
+    const fallbackConfigPath = join(opts.diffelensRoot, ".diffelens.yaml");
     config = await loadConfigWithFallback(opts.configPath, fallbackConfigPath);
   } else {
     // GitHub mode: use config as-is

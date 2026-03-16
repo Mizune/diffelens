@@ -35,7 +35,7 @@ export function resolveOptions(): RunOptions {
   const diffTarget = (explicitDiffTarget ?? "all") as DiffTarget;
   const stateDir = parseArg(args, "--state-dir") ?? defaultStateDir(mode);
   const explicitConfig = parseArg(args, "--config") ?? process.env.CONFIG_PATH;
-  const configPath = explicitConfig ?? ".ai-review.yaml";
+  const configPath = explicitConfig ?? ".diffelens.yaml";
   const configExplicit = explicitConfig !== undefined;
 
   const cliBase = parseArg(args, "--base");
@@ -95,7 +95,7 @@ function detectMode(): "github" | "local" {
 }
 
 function defaultStateDir(mode: string): string {
-  return mode === "github" ? ".ai-review-state" : ".ai-review-state";
+  return mode === "github" ? ".diffelens-state" : ".diffelens-state";
 }
 
 function parseArg(args: string[], flag: string): string | undefined {

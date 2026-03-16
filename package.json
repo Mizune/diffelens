@@ -31,7 +31,7 @@
     "prompts/",
     "README.md",
     "LICENSE",
-    ".ai-review.yaml"
+    ".diffelens.yaml"
   ],
   "scripts": {
     "review": "tsx src/main.ts",

@@ -4,7 +4,7 @@ import type { ReviewState } from "../state/review-state.js";
 // State embedding/extraction for PR comments (GitHub mode)
 // ============================================================
 
-const STATE_MARKER_PREFIX = "<!-- ai-review-state: ";
+const STATE_MARKER_PREFIX = "<!-- diffelens-state: ";
 const STATE_MARKER_SUFFIX = " -->";
 
 /** Embed review state as a hidden marker at the end of the comment body */

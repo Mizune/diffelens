@@ -65,12 +65,12 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
+          CONFIG_PATH: ${{ github.workspace }}/.diffelens.yaml
 ```
 
 ### Gemini Workflow
 
-To use Gemini instead, install the Gemini CLI and set `default_cli: "gemini"` in `.ai-review.yaml`:
+To use Gemini instead, install the Gemini CLI and set `default_cli: "gemini"` in `.diffelens.yaml`:
 
 ```yaml
       - name: Install Gemini CLI
@@ -109,7 +109,7 @@ You can install multiple CLIs and let lenses use different backends:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 ```
 
-Then configure per-lens CLIs in `.ai-review.yaml`:
+Then configure per-lens CLIs in `.diffelens.yaml`:
 
 ```yaml
 lenses:
@@ -125,7 +125,7 @@ lenses:
 
 ## Configuration
 
-Place `.ai-review.yaml` at the repository root. The workflow reads it via `CONFIG_PATH` env var (defaults to `.ai-review.yaml`).
+Place `.diffelens.yaml` at the repository root. The workflow reads it via `CONFIG_PATH` env var (defaults to `.diffelens.yaml`).
 
 You can override with `--config` or `CONFIG_PATH`:
 
@@ -138,7 +138,7 @@ See [Local Mode Guide — Configuration](./local-mode.md#configuration) for full
 
 ## State Management
 
-diffelens uses **comment-embedded state** for cross-round persistence in GitHub mode. Review state is encoded as a hidden HTML marker (`<!-- ai-review-state: {base64} -->`) at the end of the summary comment. No artifacts or external storage are needed.
+diffelens uses **comment-embedded state** for cross-round persistence in GitHub mode. Review state is encoded as a hidden HTML marker (`<!-- diffelens-state: {base64} -->`) at the end of the summary comment. No artifacts or external storage are needed.
 
 1. On each workflow run, diffelens searches for the existing summary comment
 2. If found, it extracts the embedded state and advances the round if `HEAD_SHA` changed
@@ -158,7 +158,7 @@ This approach is more reliable than GitHub Actions artifacts, which can silently
 To dismiss a finding directly from the PR comment thread:
 
 ```
-/ai-review dismiss {finding-id} {reason}
+/diffelens dismiss {finding-id} {reason}
 ```
 
 This requires the **command handler workflow** (`.github/workflows/ai-review-commands.yml`):
@@ -178,7 +178,7 @@ jobs:
   handle-command:
     if: |
       github.event.issue.pull_request &&
-      startsWith(github.event.comment.body, '/ai-review')
+      startsWith(github.event.comment.body, '/diffelens')
     runs-on: ubuntu-latest
     timeout-minutes: 2
 
@@ -215,10 +215,10 @@ Ensure the CLI is installed in a prior step and the corresponding API key secret
 
 ### Timeout
 
-If lenses timeout, increase `timeout_ms` in `.ai-review.yaml` or `timeout-minutes` in the workflow.
+If lenses timeout, increase `timeout_ms` in `.diffelens.yaml` or `timeout-minutes` in the workflow.
 
 ```yaml
-# .ai-review.yaml
+# .diffelens.yaml
 lenses:
   architectural:
     timeout_ms: 900000  # 15 minutes
@@ -236,7 +236,7 @@ Check that `fetch-depth: 0` is set in the checkout step. Without full history, `
 
 Review state is embedded in the PR summary comment. If state is lost between rounds:
 - Ensure `GITHUB_TOKEN` has `pull-requests: write` permission
-- Check that the summary comment (with `<!-- ai-review-summary -->` marker) exists and hasn't been deleted
+- Check that the summary comment (with `<!-- diffelens-summary -->` marker) exists and hasn't been deleted
 
 ### Lenses Skipped
 

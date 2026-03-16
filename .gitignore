@@ -1,7 +1,7 @@
 node_modules/
 dist/
-.ai-review-state/
-.ai-review.local.yaml
+.diffelens-state/
+.diffelens.local.yaml
 .env*
 *.log
 .DS_Store

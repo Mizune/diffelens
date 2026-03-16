@@ -5,7 +5,7 @@ import type { ReviewDecision } from "../convergence.js";
 // Generate Markdown summary for posting to PR
 // ============================================================
 
-const MARKER = "<!-- ai-review-summary -->";
+const MARKER = "<!-- diffelens-summary -->";
 
 export function renderSummary(
   state: ReviewState,
@@ -109,7 +109,7 @@ export function renderSummary(
     lines.push(
       "---",
       "<sub>",
-      `💬 Dismiss a finding: <code>/ai-review dismiss {id} {reason}</code>`,
+      `💬 Dismiss a finding: <code>/diffelens dismiss {id} {reason}</code>`,
       "<br>",
       `🔄 Re-review: automatically triggered on new commits`,
       "</sub>"

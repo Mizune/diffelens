@@ -70,20 +70,20 @@ npx tsx src/test-lens.ts bug_risk
 | `--diff-target` | `staged` / `unstaged` / `all` / `branch` / `commits` | `all` |
 | `--base <ref>` | Base git ref for diff range | merge-base with main |
 | `--head <ref>` | Head git ref for diff range | current HEAD |
-| `--config <path>` | Config file path | `.ai-review.yaml` |
-| `--state-dir <path>` | State directory | `.ai-review-state` |
+| `--config <path>` | Config file path | `.diffelens.yaml` |
+| `--state-dir <path>` | State directory | `.diffelens-state` |
 | `--mode` | `github` / `local` (usually auto-detected) | auto-detect |
 
 ## Configuration
 
-Place `.ai-review.yaml` at the repository root. If no config exists in the target repo, diffelens uses its own bundled default config.
+Place `.diffelens.yaml` at the repository root. If no config exists in the target repo, diffelens uses its own bundled default config.
 
 ### Local Config Overlay
 
-You can override settings for local development by creating `.ai-review.local.yaml` alongside `.ai-review.yaml`. In local mode, diffelens auto-detects this file and deep-merges it over the base config. Only specify fields you want to override — everything else is inherited.
+You can override settings for local development by creating `.diffelens.local.yaml` alongside `.diffelens.yaml`. In local mode, diffelens auto-detects this file and deep-merges it over the base config. Only specify fields you want to override — everything else is inherited.
 
 ```yaml
-# .ai-review.local.yaml — use Claude locally instead of Gemini
+# .diffelens.local.yaml — use Claude locally instead of Gemini
 global:
   default_cli: "claude"
 
@@ -109,9 +109,9 @@ lenses:
 | `filters.exclude_patterns` | Array replacement (not appended) |
 
 **Notes:**
-- `.ai-review.local.yaml` is gitignored by default
+- `.diffelens.local.yaml` is gitignored by default
 - Skipped when `--config` is explicitly provided
-- Only applied in local mode (GitHub Actions always uses `.ai-review.yaml`)
+- Only applied in local mode (GitHub Actions always uses `.diffelens.yaml`)
 
 ### Default Config (Claude Code)
 

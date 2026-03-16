@@ -5,7 +5,7 @@ import type { CLIName, ToolPolicy } from "./adapters/index.js";
 import { VALID_SEVERITIES } from "./severity.js";
 
 // ============================================================
-// Type definitions and loader for .ai-review.yaml
+// Type definitions and loader for .diffelens.yaml
 // ============================================================
 
 export interface GlobalConfig {
@@ -81,7 +81,7 @@ interface RawConfig {
   filters: { exclude_patterns: string[] };
 }
 
-export const LOCAL_CONFIG_FILENAME = ".ai-review.local.yaml";
+export const LOCAL_CONFIG_FILENAME = ".diffelens.local.yaml";
 
 const BUILTIN_LENSES = new Set(["readability", "architectural", "bug_risk"]);
 
