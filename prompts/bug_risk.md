@@ -59,6 +59,7 @@ Do NOT wrap in code fences. Return pure JSON only.
       "scenario": "Under what conditions the bug would occur"
     }
   ],
+  "explored_files": ["list of files the agent referenced"],
   "overall_assessment": "clean"
 }
 
