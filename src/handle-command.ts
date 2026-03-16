@@ -10,21 +10,21 @@ import { checkConvergence } from "./convergence.js";
 import { loadConfig } from "./config.js";
 
 // ============================================================
-// Handle /ai-review dismiss {id} {reason} command
+// Handle /diffelens dismiss {id} {reason} command
 // ============================================================
 
 async function main() {
   const prNumber = parseInt(process.env.PR_NUMBER ?? "0");
   const commandBody = process.env.COMMAND_BODY ?? "";
   const commandUser = process.env.COMMAND_USER ?? "unknown";
-  const stateDir = process.env.STATE_DIR ?? ".ai-review-state";
+  const stateDir = process.env.STATE_DIR ?? ".diffelens-state";
 
   console.log(`Command: ${commandBody}`);
   console.log(`User: ${commandUser}`);
 
   // Parse command
   const match = commandBody.match(
-    /^\/ai-review\s+dismiss\s+(\S+)\s*(.*)?$/
+    /^\/diffelens\s+dismiss\s+(\S+)\s*(.*)?$/
   );
 
   if (!match) {
@@ -81,7 +81,7 @@ async function main() {
 
   // Update summary comment (via shared module)
   if (process.env.GITHUB_TOKEN) {
-    const configPath = process.env.CONFIG_PATH ?? ".ai-review.yaml";
+    const configPath = process.env.CONFIG_PATH ?? ".diffelens.yaml";
     const config = await loadConfig(configPath);
 
     const decision = checkConvergence(updatedState, config.convergence);

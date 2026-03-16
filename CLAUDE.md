@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 ## Project Overview
-Multi-lens AI PR review orchestrator. Uses Claude Code CLI / Codex CLI as the execution engine for lenses, reviewing PRs in parallel from specialized perspectives (default: readability, architectural, bug_risk). Custom lenses can be added via `.ai-review.yaml`.
+Multi-lens AI PR review orchestrator. Uses Claude Code CLI / Codex CLI as the execution engine for lenses, reviewing PRs in parallel from specialized perspectives (default: readability, architectural, bug_risk). Custom lenses can be added via `.diffelens.yaml`.
 
 ## Tech Stack
 - TypeScript (ES2022, ESM)
@@ -12,7 +12,7 @@ Multi-lens AI PR review orchestrator. Uses Claude Code CLI / Codex CLI as the ex
 
 ## Architecture
 - `src/main.ts` — Orchestrator: config → diff → lenses → dedup → convergence → output
-- `src/config.ts` — `.ai-review.yaml` loader with validation and normalization
+- `src/config.ts` — `.diffelens.yaml` loader with validation and normalization
 - `src/options.ts` — CLI arg parsing and mode detection (github / local)
 - `src/diff.ts` — Diff fetching (git diff) and hashing
 - `src/lens-runner.ts` — Lens execution via CLI adapter
@@ -29,21 +29,21 @@ Multi-lens AI PR review orchestrator. Uses Claude Code CLI / Codex CLI as the ex
 
 ## Key Design Principles
 1. **Vary context per lens**: readability runs in tempdir isolation with no tools; architectural/bug_risk can explore the repository
-2. **Single summary comment**: Keeps the PR comment thread clean (identified by `<!-- ai-review-summary -->` marker)
+2. **Single summary comment**: Keeps the PR comment thread clean (identified by `<!-- diffelens-summary -->` marker)
 3. **Convergent design**: N-round severity filtering via `round_severities` array + approve when zero blockers
 4. **Custom prompts**: `prompt_file` for full replacement, `prompt_append_file` to extend builtin prompts
 
 ## Configuration
-- Config path: `--config` arg → `CONFIG_PATH` env var → `.ai-review.yaml` (cwd)
-- Local mode fallback: diffelens bundled `.ai-review.yaml` if repo has none
-- **Local overlay**: `.ai-review.local.yaml` is auto-detected in local mode and deep-merged over the base config. Only specified fields are overridden. Skipped when `--config` is explicitly provided. Use this to run different CLI/model settings locally (e.g., Claude Opus) vs CI (e.g., Gemini Flash)
+- Config path: `--config` arg → `CONFIG_PATH` env var → `.diffelens.yaml` (cwd)
+- Local mode fallback: diffelens bundled `.diffelens.yaml` if repo has none
+- **Local overlay**: `.diffelens.local.yaml` is auto-detected in local mode and deep-merged over the base config. Only specified fields are overridden. Skipped when `--config` is explicitly provided. Use this to run different CLI/model settings locally (e.g., Claude Opus) vs CI (e.g., Gemini Flash)
 - Convergence: `round_severities` array (N rounds) or legacy `round_N_severities` (auto-normalized)
 
 ## Commands
 - `npx tsx src/main.ts` — Run all lenses (github mode: requires PR_NUMBER, BASE_SHA, HEAD_SHA)
 - `npx tsx src/main.ts --diff-target branch` — Local mode: review current branch diff
 - `npx tsx src/test-lens.ts <lens_name>` — Test a single lens
-- `npx tsx src/handle-command.ts` — Process /ai-review dismiss commands
+- `npx tsx src/handle-command.ts` — Process /diffelens dismiss commands
 
 ## Notes
 - Imports use `.js` extension (ESM)

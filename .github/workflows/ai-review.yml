@@ -48,4 +48,4 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CONFIG_PATH: ${{ github.workspace }}/.ai-review.yaml
+          CONFIG_PATH: ${{ github.workspace }}/.diffelens.yaml

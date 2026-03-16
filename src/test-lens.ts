@@ -23,7 +23,7 @@ async function main() {
     process.exit(1);
   }
 
-  const configPath = process.env.CONFIG_PATH ?? ".ai-review.yaml";
+  const configPath = process.env.CONFIG_PATH ?? ".diffelens.yaml";
   const config = await loadConfig(configPath);
 
   const lens = config.lenses.find((l) => l.name === lensName);
@@ -67,7 +67,7 @@ async function main() {
   console.log(`Diff: ${diff.length} chars\n`);
 
   // State
-  const stateDir = process.env.STATE_DIR ?? ".ai-review-state";
+  const stateDir = process.env.STATE_DIR ?? ".diffelens-state";
   const state = await loadOrCreateState(
     stateDir,
     prNumber,
