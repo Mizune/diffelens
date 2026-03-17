@@ -9,6 +9,13 @@ export const MAX_BUFFER_BYTES = 10 * 1024 * 1024;
 /** Tool names that require write permission */
 export const WRITE_CAPABLE_TOOLS = ["Write", "Edit", "Bash"] as const;
 
+/** Check if a tool list includes any write-capable tools */
+export function hasWriteCapableTools(tools: string[]): boolean {
+  return tools.some((t) =>
+    WRITE_CAPABLE_TOOLS.some((w) => t === w || t.startsWith(`${w}(`))
+  );
+}
+
 /** Request passed from lens to CLI execution */
 export interface CLIRequest {
   /** Lens system prompt (file path) */

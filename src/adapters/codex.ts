@@ -8,7 +8,7 @@ import type {
   LensOutput,
   ToolPolicy,
 } from "./types.js";
-import { MAX_BUFFER_BYTES, WRITE_CAPABLE_TOOLS } from "./types.js";
+import { MAX_BUFFER_BYTES, hasWriteCapableTools } from "./types.js";
 import { stripCodeFences } from "./parse-utils.js";
 
 const execAsync = promisify(execFile);
@@ -96,6 +96,7 @@ export class CodexAdapter implements CLIAdapter {
       "--skip-git-repo-check",
       "--sandbox",
       this.mapToolPolicy(request.toolPolicy),
+      "-",  // read prompt from stdin
     ];
 
     return { args, fullPrompt };
@@ -103,19 +104,15 @@ export class CodexAdapter implements CLIAdapter {
 
   private mapToolPolicy(policy: ToolPolicy): string {
     switch (policy.type) {
-      case "none":
-        return "read-only";
+      case "none": // falls through
       case "read_only":
         return "read-only";
       case "all":
-        return "full-auto";
+        return "danger-full-access";
       case "explicit":
-        if (policy.tools.some((t) =>
-          WRITE_CAPABLE_TOOLS.some((w) => t === w || t.startsWith(`${w}(`))
-        )) {
-          return "workspace-write";
-        }
-        return "workspace-read";
+        return hasWriteCapableTools(policy.tools)
+          ? "workspace-write"
+          : "read-only";
     }
   }
 
