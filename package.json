@@ -1,6 +1,6 @@
 {
   "name": "diffelens",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Multi-lens AI PR review orchestrator using Claude Code / Codex CLI",
   "type": "module",
   "license": "MIT",

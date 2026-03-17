@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { join } from "path";
-import { existsSync } from "fs";
+import { existsSync, realpathSync } from "fs";
+import { fileURLToPath } from "url";
 import { loadConfig, loadConfigWithFallback, loadConfigWithLocalOverlay, LOCAL_CONFIG_FILENAME } from "./config.js";
 import { runLens, type LensRunResult } from "./lens-runner.js";
 import {
@@ -282,10 +283,11 @@ export async function main(options?: RunOptions) {
   console.log("\nAI Review — Done.");
 }
 
-// In ESM, use import.meta.url to determine if this is the entry point
+// In ESM, use import.meta.url to determine if this is the entry point.
+// realpathSync resolves npm global symlinks (e.g. /usr/local/bin/diffelens → .../dist/main.js)
+const __filename = fileURLToPath(import.meta.url);
 const isEntryPoint =
-  process.argv[1] &&
-  import.meta.url.endsWith(process.argv[1].replace(/.*\//, ""));
+  process.argv[1] && realpathSync(process.argv[1]) === __filename;
 
 if (isEntryPoint) {
   main().catch((err) => {
