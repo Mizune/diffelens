@@ -111,6 +111,15 @@ describe("ClaudeCodeAdapter parseOutput (indirect)", () => {
 
 describe("CodexAdapter parseOutput / extractContent (indirect)", () => {
   function extractContent(event: any): string | null {
+    // Codex v0.115.0+: item.completed with agent_message
+    if (
+      event?.type === "item.completed" &&
+      event?.item?.type === "agent_message" &&
+      typeof event.item.text === "string"
+    ) {
+      return event.item.text;
+    }
+    // Legacy: message with assistant role
     if (event?.type === "message" && event?.role === "assistant") {
       return typeof event.content === "string"
         ? event.content
@@ -190,6 +199,30 @@ describe("CodexAdapter parseOutput / extractContent (indirect)", () => {
     expect(result.findings).toHaveLength(1);
   });
 
+  it("parses Codex v0.115.0 item.completed agent_message format", () => {
+    const lines = [
+      JSON.stringify({ type: "thread.started", thread_id: "abc" }),
+      JSON.stringify({ type: "turn.started" }),
+      JSON.stringify({
+        type: "item.completed",
+        item: {
+          id: "item_0",
+          type: "agent_message",
+          text: JSON.stringify({
+            findings: [{ file: "a.ts", severity: "warning" }],
+            overall_assessment: "minor_issues",
+          }),
+        },
+      }),
+      JSON.stringify({ type: "turn.completed", usage: { input_tokens: 100, output_tokens: 50 } }),
+    ];
+    const stdout = lines.join("\n");
+    const result = parseCodexOutput(stdout);
+    expect(result).not.toBeNull();
+    expect(result.findings).toHaveLength(1);
+    expect(result.overall_assessment).toBe("minor_issues");
+  });
+
   it("returns null for empty output", () => {
     expect(parseCodexOutput("")).toBeNull();
   });
@@ -216,6 +249,24 @@ describe("CodexAdapter parseOutput / extractContent (indirect)", () => {
 
     it("returns string events as-is", () => {
       expect(extractContent("plain string")).toBe("plain string");
+    });
+
+    it("extracts text from item.completed agent_message (v0.115.0+)", () => {
+      expect(
+        extractContent({
+          type: "item.completed",
+          item: { type: "agent_message", text: "review output" },
+        })
+      ).toBe("review output");
+    });
+
+    it("returns null for item.completed with non-agent_message type", () => {
+      expect(
+        extractContent({
+          type: "item.completed",
+          item: { type: "reasoning", text: "thinking..." },
+        })
+      ).toBeNull();
     });
 
     it("returns null for unrecognized events", () => {

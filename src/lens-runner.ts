@@ -79,6 +79,14 @@ export async function runLens(
       };
     }
 
+    // Warn when CLI succeeded but output couldn't be parsed
+    if (!response.parsed) {
+      const preview = response.rawStdout.slice(0, 500);
+      console.warn(
+        `    [${config.name}] Parse failed — rawStdout preview:\n${preview}`
+      );
+    }
+
     // Attach lens name to findings + apply severityCap
     const output = applySeverityCap(response.parsed, config);
 

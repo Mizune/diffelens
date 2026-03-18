@@ -140,6 +140,15 @@ export class CodexAdapter implements CLIAdapter {
   }
 
   private extractContent(event: any): string | null {
+    // Codex v0.115.0+: {"type":"item.completed","item":{"type":"agent_message","text":"..."}}
+    if (
+      event?.type === "item.completed" &&
+      event?.item?.type === "agent_message" &&
+      typeof event.item.text === "string"
+    ) {
+      return event.item.text;
+    }
+    // Legacy: {"type":"message","role":"assistant","content":"..."}
     if (event?.type === "message" && event?.role === "assistant") {
       return typeof event.content === "string"
         ? event.content
