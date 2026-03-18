@@ -24,7 +24,7 @@ import {
 import { checkAvailability, type Finding } from "./adapters/index.js";
 import { filterDiffByExcludePatterns } from "./filters.js";
 import { resolveOptions, type RunOptions } from "./options.js";
-import { fetchDiff, hashDiff, resolveGitRef, parseDiffStats } from "./diff.js";
+import { fetchDiff, hashDiff, resolveGitRef, parseDiffStats, parseDiffFiles } from "./diff.js";
 import { collectProjectContext, formatProjectContext } from "./project-context.js";
 import { resolvePrompt, validatePrompts } from "./prompt-resolver.js";
 import type { ReviewScope, LensStat } from "./output/summary-renderer.js";
@@ -222,6 +222,7 @@ export async function main(options?: RunOptions) {
         success: r.success,
         assessment: r.output?.overall_assessment ?? null,
         exploredFiles: r.output?.explored_files?.length ?? null,
+        findingCount: r.output?.findings.length ?? null,
       });
     } else {
       console.error(`  x Lens failed:`, result.reason);
@@ -259,8 +260,16 @@ export async function main(options?: RunOptions) {
   console.log(`Decision: ${decision}`);
 
   // 12. Build review scope for summary
+  const diffFiles = parseDiffFiles(diff);
+  const changeSummary = results
+    .filter((r): r is PromiseFulfilledResult<LensRunResult> => r.status === "fulfilled")
+    .map((r) => r.value.output?.change_summary)
+    .find((s) => s != null) ?? null;
+
   const scope: ReviewScope = {
     diffStats: parseDiffStats(diff),
+    diffFiles,
+    changeSummary,
     lensStats,
   };
 

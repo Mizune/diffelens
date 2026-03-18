@@ -52,6 +52,7 @@ Do NOT wrap in code fences. Return pure JSON only.
       "suggestion": "Specific improvement suggestion"
     }
   ],
+  "change_summary": "Brief 1-2 sentence summary of what this PR changes",
   "overall_assessment": "clean"
 }
 

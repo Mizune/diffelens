@@ -15,10 +15,13 @@ export interface LensStat {
   success: boolean;
   assessment: string | null;
   exploredFiles: number | null;
+  findingCount: number | null;
 }
 
 export interface ReviewScope {
   diffStats: DiffStats;
+  diffFiles: string[];
+  changeSummary: string | null;
   lensStats: LensStat[];
 }
 
@@ -141,7 +144,7 @@ export function renderSummary(
 }
 
 function renderScope(scope: ReviewScope): string[] {
-  const { diffStats, lensStats } = scope;
+  const { diffStats, diffFiles, changeSummary, lensStats } = scope;
   const successCount = lensStats.filter((l) => l.success).length;
   const total = lensStats.length;
 
@@ -154,17 +157,45 @@ function renderScope(scope: ReviewScope): string[] {
   const lines: string[] = [
     `<details><summary>📋 ${summaryText}</summary>`,
     "",
+  ];
+
+  // Change summary (from LLM, best effort)
+  if (changeSummary) {
+    const sanitized = changeSummary
+      .replace(/<\/?details>/gi, "")
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+    lines.push(sanitized, "");
+  }
+
+  lines.push(
     "| Lens | CLI | Duration | Explored | Result |",
     "|------|-----|----------|----------|--------|",
-  ];
+  );
+
+  const diffFileCount = diffFiles.length;
 
   for (const lens of lensStats) {
     const duration = formatDuration(lens.durationMs);
-    const explored = lens.exploredFiles != null ? `${lens.exploredFiles} files` : "—";
+    const explored = formatExplored(lens, diffFileCount);
     const result = lens.success
-      ? formatAssessment(lens.assessment)
+      ? formatResult(lens.assessment, lens.findingCount)
       : "⚠️ error";
     lines.push(`| ${lens.name} | ${lens.cli} | ${duration} | ${explored} | ${result} |`);
+  }
+
+  // Changed files list
+  if (diffFiles.length > 0) {
+    const MAX_FILES = 20;
+    const displayFiles = diffFiles.slice(0, MAX_FILES);
+    lines.push("", "**Changed files:**");
+    for (const f of displayFiles) {
+      lines.push(`- \`${f}\``);
+    }
+    if (diffFiles.length > MAX_FILES) {
+      lines.push(`- ...and ${diffFiles.length - MAX_FILES} more`);
+    }
   }
 
   lines.push("", "</details>", "");
@@ -172,13 +203,32 @@ function renderScope(scope: ReviewScope): string[] {
   return lines;
 }
 
-function formatDuration(ms: number): string {
-  return `${(ms / 1000).toFixed(1)}s`;
+function formatExplored(lens: LensStat, diffFileCount: number): string {
+  if (lens.exploredFiles != null) {
+    return `${lens.exploredFiles} files`;
+  }
+  if (lens.success && diffFileCount > 0) {
+    return `${diffFileCount} files (diff)`;
+  }
+  return "—";
 }
 
-function formatAssessment(assessment: string | null): string {
-  if (!assessment) return "—";
-  return assessment.replace(/_/g, " ");
+function formatResult(assessment: string | null, findingCount: number | null): string {
+  if (assessment && findingCount != null) {
+    const label = assessment.replace(/_/g, " ");
+    return findingCount > 0 ? `${label} (${findingCount})` : label;
+  }
+  if (findingCount != null) {
+    return `${findingCount} issues`;
+  }
+  if (assessment) {
+    return assessment.replace(/_/g, " ");
+  }
+  return "—";
+}
+
+function formatDuration(ms: number): string {
+  return `${(ms / 1000).toFixed(1)}s`;
 }
 
 function renderFinding(f: StateFinding, currentRound: number): string[] {

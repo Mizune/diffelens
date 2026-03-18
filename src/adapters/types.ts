@@ -60,6 +60,7 @@ export interface LensOutput {
   findings: Finding[];
   overall_assessment: "clean" | "minor_issues" | "significant_issues";
   explored_files?: string[];
+  change_summary?: string;
 }
 
 export interface Finding {

@@ -31,6 +31,18 @@ export function parseDiffStats(diff: string): DiffStats {
   return { files, additions, deletions };
 }
 
+/** Extract file paths from unified diff headers */
+export function parseDiffFiles(diff: string): string[] {
+  const files: string[] = [];
+  for (const line of diff.split("\n")) {
+    const match = line.match(/^diff --git a\/(.+?) b\/(.+)/);
+    if (match) {
+      files.push(match[2]);
+    }
+  }
+  return files;
+}
+
 export function fetchDiff(options: RunOptions): string {
   const command = buildDiffCommand(options);
   return execSync(command, {

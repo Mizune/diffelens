@@ -125,10 +125,12 @@ describe("renderSummary", () => {
 describe("renderSummary with ReviewScope", () => {
   const scope: ReviewScope = {
     diffStats: { files: 13, additions: 215, deletions: 3 },
+    diffFiles: ["src/main.ts", "src/config.ts"],
+    changeSummary: null,
     lensStats: [
-      { name: "readability", cli: "gemini", durationMs: 12300, success: true, assessment: "clean", exploredFiles: null },
-      { name: "architectural", cli: "gemini", durationMs: 18500, success: true, assessment: "clean", exploredFiles: 8 },
-      { name: "bug_risk", cli: "gemini", durationMs: 21100, success: true, assessment: "minor_issues", exploredFiles: 5 },
+      { name: "readability", cli: "gemini", durationMs: 12300, success: true, assessment: "clean", exploredFiles: null, findingCount: 0 },
+      { name: "architectural", cli: "gemini", durationMs: 18500, success: true, assessment: "clean", exploredFiles: 8, findingCount: 0 },
+      { name: "bug_risk", cli: "gemini", durationMs: 21100, success: true, assessment: "minor_issues", exploredFiles: 5, findingCount: 3 },
     ],
   };
 
@@ -141,17 +143,19 @@ describe("renderSummary with ReviewScope", () => {
 
   it("renders per-lens stats table", () => {
     const result = renderSummary(makeState(), "approve", "github", scope);
-    expect(result).toContain("| readability | gemini | 12.3s | — | clean |");
+    expect(result).toContain("| readability | gemini | 12.3s | 2 files (diff) | clean |");
     expect(result).toContain("| architectural | gemini | 18.5s | 8 files | clean |");
-    expect(result).toContain("| bug_risk | gemini | 21.1s | 5 files | minor issues |");
+    expect(result).toContain("| bug_risk | gemini | 21.1s | 5 files | minor issues (3) |");
   });
 
   it("shows error for failed lens", () => {
     const failedScope: ReviewScope = {
       diffStats: { files: 5, additions: 100, deletions: 20 },
+      diffFiles: ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"],
+      changeSummary: null,
       lensStats: [
-        { name: "readability", cli: "gemini", durationMs: 1200, success: false, assessment: null, exploredFiles: null },
-        { name: "architectural", cli: "gemini", durationMs: 15000, success: true, assessment: "clean", exploredFiles: 3 },
+        { name: "readability", cli: "gemini", durationMs: 1200, success: false, assessment: null, exploredFiles: null, findingCount: null },
+        { name: "architectural", cli: "gemini", durationMs: 15000, success: true, assessment: "clean", exploredFiles: 3, findingCount: 0 },
       ],
     };
     const result = renderSummary(makeState(), "approve", "github", failedScope);
