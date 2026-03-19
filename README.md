@@ -12,6 +12,10 @@
 
 Multi-lens AI PR review orchestrator using LLM CLI tools such as Claude Code / Codex CLI / Gemini.
 
+<p align="center">
+  <img src="assets/screenshot.png" alt="diffelens PR review example" width="700">
+</p>
+
 ## Concept
 
 - **Lens Separation**: readability / architectural / bug_risk run as separate LLM invocations
