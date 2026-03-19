@@ -4,7 +4,7 @@ Automatically review PRs with diffelens on every push and PR open.
 
 ## Prerequisites
 
-- A GitHub repository with diffelens installed (`npm install` or `package.json` dependency)
+- A GitHub repository
 - An API key for at least one CLI tool (see [Secrets Configuration](#secrets-configuration))
 
 ## Secrets Configuration
@@ -50,14 +50,11 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Install Claude Code CLI
-        run: npm install -g @anthropic-ai/claude-code
-
-      - name: Install orchestrator dependencies
-        run: npm ci
+      - name: Install diffelens and Claude Code CLI
+        run: npm install -g diffelens @anthropic-ai/claude-code
 
       - name: Run AI Review
-        run: npx tsx src/main.ts
+        run: diffelens
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -65,7 +62,6 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          CONFIG_PATH: ${{ github.workspace }}/.diffelens.yaml
 ```
 
 ### Gemini Workflow
@@ -73,11 +69,11 @@ jobs:
 To use Gemini instead, install the Gemini CLI and set `default_cli: "gemini"` in `.diffelens.yaml`:
 
 ```yaml
-      - name: Install Gemini CLI
-        run: npm install -g @google/gemini-cli
+      - name: Install diffelens and Gemini CLI
+        run: npm install -g diffelens @google/gemini-cli
 
       - name: Run AI Review
-        run: npx tsx src/main.ts
+        run: diffelens
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -92,13 +88,11 @@ To use Gemini instead, install the Gemini CLI and set `default_cli: "gemini"` in
 You can install multiple CLIs and let lenses use different backends:
 
 ```yaml
-      - name: Install CLIs
-        run: |
-          npm install -g @anthropic-ai/claude-code
-          npm install -g @google/gemini-cli
+      - name: Install diffelens and CLIs
+        run: npm install -g diffelens @anthropic-ai/claude-code @google/gemini-cli
 
       - name: Run AI Review
-        run: npx tsx src/main.ts
+        run: diffelens
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
@@ -125,9 +119,9 @@ lenses:
 
 ## Configuration
 
-Place `.diffelens.yaml` at the repository root. The workflow reads it via `CONFIG_PATH` env var (defaults to `.diffelens.yaml`).
+Place `.diffelens.yaml` at the repository root. diffelens auto-detects it in the current working directory.
 
-You can override with `--config` or `CONFIG_PATH`:
+You can override with `--config` flag or `CONFIG_PATH` env var:
 
 ```yaml
 env:
@@ -149,7 +143,7 @@ Alternatively, set the CLI-specific env var directly in the workflow step:
 
 ```yaml
       - name: Run AI Review
-        run: npx tsx src/main.ts
+        run: diffelens
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}

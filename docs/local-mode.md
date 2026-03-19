@@ -16,10 +16,11 @@ Run diffelens locally to review your changes before pushing.
 ## Setup
 
 ```bash
-# Clone and install
-git clone https://github.com/Mizune/diffelens.git
-cd diffelens
-npm install
+# Install diffelens globally
+npm install -g diffelens
+
+# Install at least one LLM CLI
+npm install -g @anthropic-ai/claude-code  # or @google/gemini-cli or @openai/codex
 
 # Set your API key
 export ANTHROPIC_API_KEY=sk-ant-xxx
@@ -31,37 +32,29 @@ export ANTHROPIC_API_KEY=sk-ant-xxx
 
 ```bash
 # Review all staged + unstaged changes (default)
-npx tsx src/main.ts
+diffelens
 
 # Review current branch diff against main
-npx tsx src/main.ts --diff-target branch
+diffelens --diff-target branch
 
 # Review only staged changes
-npx tsx src/main.ts --diff-target staged
+diffelens --diff-target staged
 ```
 
 ### Commit Range
 
 ```bash
 # Review a specific commit range
-npx tsx src/main.ts --base def5678 --head abc1234
+diffelens --base def5678 --head abc1234
 
 # Review from a specific base to current HEAD
-npx tsx src/main.ts --base def5678
+diffelens --base def5678
 
 # Review up to a specific commit
-npx tsx src/main.ts --head abc1234
+diffelens --head abc1234
 ```
 
 > When `--base` or `--head` is provided, `--diff-target` is ignored.
-
-### Test a Single Lens
-
-```bash
-npx tsx src/test-lens.ts readability
-npx tsx src/test-lens.ts architectural
-npx tsx src/test-lens.ts bug_risk
-```
 
 ## CLI Options
 

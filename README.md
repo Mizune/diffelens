@@ -27,56 +27,106 @@ Multi-lens AI PR review orchestrator using LLM CLI tools such as Claude Code / C
 
 ## Quick Start
 
+### Local Review
+
 ```bash
-npm install
-npm install -g @anthropic-ai/claude-code  # or @google/gemini-cli
+# Install diffelens and at least one LLM CLI
+npm install -g diffelens
+npm install -g @anthropic-ai/claude-code  # or @google/gemini-cli or @openai/codex
+
+# Set your API key
 export ANTHROPIC_API_KEY=sk-ant-xxx
 
 # Review current branch changes
-npx tsx src/main.ts --diff-target branch
+diffelens --diff-target branch
+```
 
-# Test a single lens
-npx tsx src/test-lens.ts readability
+### GitHub Actions
+
+Add the workflow to your repo — diffelens posts a review comment on every PR:
+
+```yaml
+# .github/workflows/ai-review.yml
+name: AI PR Review
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install -g diffelens @anthropic-ai/claude-code
+      - run: diffelens
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+```
+
+### Configuration
+
+Place `.diffelens.yaml` at the repository root to customize lenses, models, and convergence settings.
+If no config exists, diffelens uses its bundled default (Claude Code).
+
+```yaml
+# .diffelens.yaml
+version: "1.0"
+global:
+  max_rounds: 4
+  default_cli: "claude"
+lenses:
+  readability:
+    cli: "claude"
+    model: "claude-sonnet-4-6"
+    isolation: "tempdir"
+    tool_policy: "none"
+    severity_cap: "warning"
+  architectural:
+    cli: "claude"
+    model: "claude-opus-4-6"
+    isolation: "repo"
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
+  bug_risk:
+    cli: "claude"
+    model: "claude-opus-4-6"
+    isolation: "repo"
+    tool_policy:
+      type: "explicit"
+      tools: ["Read", "Grep", "Glob"]
 ```
 
 ## Documentation
 
 | Guide | Description |
 |-------|-------------|
-| [Local Mode](docs/local-mode.md) | CLI options, configuration, custom prompts, reading output |
+| [Local Mode](docs/local-mode.md) | CLI options, diff targets, custom prompts, convergence settings |
 | [GitHub Actions](docs/github-actions.md) | Workflow setup, secrets, state management, troubleshooting |
 
-## File Structure
+## Contributing
 
-```
-src/
-├── main.ts              # Orchestrator
-├── config.ts            # .diffelens.yaml loader + validation
-├── options.ts           # CLI arg parsing + mode detection
-├── diff.ts              # Diff fetching + hashing
-├── lens-runner.ts       # Lens execution (CLI invocation)
-├── prompt-resolver.ts   # Prompt resolution (builtin/custom/extended)
-├── project-context.ts   # Repo metadata collection
-├── filters.ts           # Diff filtering (glob-based exclusion)
-├── severity.ts          # Shared severity rank constants
-├── deduplicator.ts      # Finding deduplication
-├── convergence.ts       # Convergence logic + per-round severity filter
-├── test-lens.ts         # Single lens test runner
-├── handle-command.ts    # /diffelens dismiss command handler
-├── adapters/
-│   ├── types.ts         # Shared interfaces
-│   ├── claude-code.ts   # Claude Code CLI adapter
-│   ├── codex.ts         # Codex CLI adapter
-│   ├── gemini.ts        # Gemini CLI adapter
-│   └── index.ts         # Factory
-├── state/
-│   └── review-state.ts  # State management
-└── output/
-    ├── summary-renderer.ts  # Markdown summary generation
-    ├── comment-state.ts     # State embedding in PR comments
-    └── github-client.ts     # GitHub API client
-prompts/
-├── readability.md
-├── architectural.md
-└── bug_risk.md
+```bash
+git clone https://github.com/Mizune/diffelens.git
+cd diffelens
+npm install
+npm test
+
+# Run from source
+npx tsx src/main.ts --diff-target branch
 ```
