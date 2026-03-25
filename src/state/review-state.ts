@@ -24,6 +24,13 @@ export interface RoundHistory {
   findings_resolved: string[];
 }
 
+export interface RecurrenceSuppression {
+  originalFindingId: string;
+  suppressedAtRound: number;
+  file: string;
+  category: string;
+}
+
 export interface ReviewState {
   schema_version: string;
   pr_number: number;
@@ -35,6 +42,7 @@ export interface ReviewState {
   findings: StateFinding[];
   round_history: RoundHistory[];
   decisions: string[];
+  recurrence_suppressions?: RecurrenceSuppression[];
 }
 
 function stateFilePath(stateDir: string, stateKey: string): string {
