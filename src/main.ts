@@ -10,6 +10,7 @@ import {
   advanceRoundIfNeeded,
   updateState,
   saveState,
+  applyRecurrenceSuppressions,
 } from "./state/review-state.js";
 import { deduplicateFindings } from "./deduplicator.js";
 import { detectAndSuppressRecurrences } from "./recurrence.js";
@@ -256,19 +257,8 @@ export async function main(options?: RunOptions) {
   }
 
   // 10. Update state
-  const newState = updateState(state, [...recurrence.findings], headSha);
-  const finalState: typeof newState = {
-    ...newState,
-    recurrence_suppressions: [
-      ...(state.recurrence_suppressions ?? []),
-      ...recurrence.directives.map((d) => ({
-        originalFindingId: d.originalFindingId,
-        suppressedAtRound: state.current_round,
-        file: d.file,
-        category: d.category,
-      })),
-    ],
-  };
+  const newState = updateState(state, recurrence.findings, headSha);
+  const finalState = applyRecurrenceSuppressions(newState, recurrence.directives);
   const openCount = finalState.findings.filter(
     (f) => f.status === "open"
   ).length;
