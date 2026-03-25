@@ -1,10 +1,6 @@
 import type { ReviewState, StateFinding } from "./state/review-state.js";
 import type { Finding } from "./adapters/types.js";
-import { linesOverlap } from "./state/review-state.js";
-
-// ============================================================
-// Recurrence Detection: suppress oscillating findings
-// ============================================================
+import { findingsMatch } from "./state/review-state.js";
 
 export interface RecurrenceDirective {
   /** Index of the suppressed finding in the original newFindings array */
@@ -19,7 +15,7 @@ export interface RecurrenceDirective {
 export interface RecurrenceResult {
   directives: readonly RecurrenceDirective[];
   /** Findings after suppression */
-  findings: readonly Finding[];
+  findings: Finding[];
 }
 
 /**
@@ -41,27 +37,27 @@ export function detectAndSuppressRecurrences(
   );
 
   if (addressedFromPriorRounds.length === 0) {
-    return { directives: [], findings: newFindings };
+    return { directives: [], findings: [...newFindings] };
   }
 
   const directives: RecurrenceDirective[] = [];
   const suppressedIndices = new Set<number>();
 
   for (let i = 0; i < newFindings.length; i++) {
-    const nf = newFindings[i];
-    const match = addressedFromPriorRounds.find((af) =>
-      isMatchingFinding(nf, af)
+    const candidate = newFindings[i];
+    const priorMatch = addressedFromPriorRounds.find((addressedFinding) =>
+      findingsMatch(candidate, addressedFinding)
     );
 
-    if (match) {
+    if (priorMatch) {
       directives.push({
         targetIndex: i,
-        originalFindingId: match.id,
-        file: nf.file,
-        category: nf.category,
+        originalFindingId: priorMatch.id,
+        file: candidate.file,
+        category: candidate.category,
         reason:
-          `Finding matches previously addressed ${match.id} ` +
-          `(raised round ${match.first_raised_round}, addressed, now recurring)`,
+          `Finding matches previously addressed ${priorMatch.id} ` +
+          `(raised round ${priorMatch.first_raised_round}, addressed, now recurring)`,
       });
       suppressedIndices.add(i);
     }
@@ -70,12 +66,4 @@ export function detectAndSuppressRecurrences(
   const findings = newFindings.filter((_, i) => !suppressedIndices.has(i));
 
   return { directives, findings };
-}
-
-function isMatchingFinding(a: Finding, b: StateFinding): boolean {
-  return (
-    a.file === b.file &&
-    a.category === b.category &&
-    linesOverlap(a.line_start, a.line_end, b.line_start, b.line_end)
-  );
 }

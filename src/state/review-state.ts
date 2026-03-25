@@ -231,7 +231,19 @@ export async function saveState(
   console.log(`  State saved → ${filePath}`);
 }
 
-// ---- Helpers (exported for testing) ----
+// ---- Helpers (exported for reuse and testing) ----
+
+/** Check if two findings refer to the same location: file + category + overlapping lines */
+export function findingsMatch(
+  a: { file: string; line_start: number; line_end: number; category: string },
+  b: { file: string; line_start: number; line_end: number; category: string }
+): boolean {
+  return (
+    a.file === b.file &&
+    a.category === b.category &&
+    linesOverlap(a.line_start, a.line_end, b.line_start, b.line_end)
+  );
+}
 
 export function linesOverlap(
   aStart: number,
@@ -245,4 +257,29 @@ export function linesOverlap(
 export function generateFindingId(lens: string, index: number): string {
   const prefix = lens.charAt(0); // r, s, b
   return `${prefix}-${String(index + 1).padStart(3, "0")}`;
+}
+
+/** Merge recurrence suppression history into state (immutable) */
+export function applyRecurrenceSuppressions(
+  state: ReviewState,
+  directives: readonly {
+    originalFindingId: string;
+    file: string;
+    category: string;
+  }[]
+): ReviewState {
+  if (directives.length === 0) return state;
+
+  return {
+    ...state,
+    recurrence_suppressions: [
+      ...(state.recurrence_suppressions ?? []),
+      ...directives.map((d) => ({
+        originalFindingId: d.originalFindingId,
+        suppressedAtRound: state.current_round,
+        file: d.file,
+        category: d.category,
+      })),
+    ],
+  };
 }
