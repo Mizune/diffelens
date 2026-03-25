@@ -82,6 +82,7 @@ describe("detectAndSuppressRecurrences", () => {
 
     expect(result.directives).toHaveLength(1);
     expect(result.directives[0].originalFindingId).toBe("r-001");
+    expect(result.directives[0].suppressedSummary).toBe("bad name");
     expect(result.findings).toHaveLength(0);
   });
 

@@ -1,4 +1,4 @@
-import type { ReviewState, StateFinding } from "./state/review-state.js";
+import type { ReviewState } from "./state/review-state.js";
 import type { Finding } from "./adapters/types.js";
 import { findingsMatch } from "./state/review-state.js";
 
@@ -10,6 +10,8 @@ export interface RecurrenceDirective {
   file: string;
   category: string;
   reason: string;
+  /** Summary of the suppressed finding for audit trail */
+  suppressedSummary: string;
 }
 
 export interface RecurrenceResult {
@@ -32,8 +34,7 @@ export function detectAndSuppressRecurrences(
   newFindings: readonly Finding[]
 ): RecurrenceResult {
   const addressedFromPriorRounds = state.findings.filter(
-    (f): f is StateFinding =>
-      f.status === "addressed" && f.first_raised_round < state.current_round
+    (f) => f.status === "addressed" && f.first_raised_round < state.current_round
   );
 
   if (addressedFromPriorRounds.length === 0) {
@@ -58,6 +59,7 @@ export function detectAndSuppressRecurrences(
         reason:
           `Finding matches previously addressed ${priorMatch.id} ` +
           `(raised round ${priorMatch.first_raised_round}, addressed, now recurring)`,
+        suppressedSummary: candidate.summary,
       });
       suppressedIndices.add(i);
     }
