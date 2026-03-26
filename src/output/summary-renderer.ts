@@ -44,6 +44,8 @@ export function renderSummary(
         ? "🚨 ESCALATED (human review required)"
         : "🔄 CHANGES REQUESTED";
 
+  const suppressionCount = state.recurrence_suppressions?.length ?? 0;
+
   const lines: string[] = [
     MARKER,
     `## 🤖 AI Review — Round ${state.current_round}/${state.max_rounds}`,
@@ -58,6 +60,13 @@ export function renderSummary(
     `| ✅ Resolved | ${resolved.length} |`,
     "",
   ];
+
+  if (suppressionCount > 0) {
+    lines.push(
+      `> **Note:** ${suppressionCount} finding(s) suppressed — recurrence detected (same location was fixed then re-raised)`,
+      "",
+    );
+  }
 
   // Review Scope (collapsible)
   if (scope) {

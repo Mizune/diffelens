@@ -10,8 +10,10 @@ import {
   advanceRoundIfNeeded,
   updateState,
   saveState,
+  applyRecurrenceSuppressions,
 } from "./state/review-state.js";
 import { deduplicateFindings } from "./deduplicator.js";
+import { detectAndSuppressRecurrences } from "./recurrence.js";
 import {
   checkConvergence,
   filterBySeverityForRound,
@@ -245,18 +247,28 @@ export async function main(options?: RunOptions) {
   const deduplicated = deduplicateFindings(filtered);
   console.log(`  -> ${deduplicated.length} after deduplication`);
 
+  // 9a. Recurrence detection
+  const recurrence = detectAndSuppressRecurrences(state, deduplicated);
+  if (recurrence.directives.length > 0) {
+    console.log(
+      `  -> ${recurrence.findings.length} after recurrence suppression ` +
+      `(${recurrence.directives.length} suppressed)`
+    );
+  }
+
   // 10. Update state
-  const newState = updateState(state, deduplicated, headSha);
-  const openCount = newState.findings.filter(
+  const newState = updateState(state, recurrence.findings, headSha);
+  const finalState = applyRecurrenceSuppressions(newState, recurrence.directives);
+  const openCount = finalState.findings.filter(
     (f) => f.status === "open"
   ).length;
-  const resolvedCount = newState.findings.filter(
+  const resolvedCount = finalState.findings.filter(
     (f) => f.status === "addressed"
   ).length;
   console.log(`  Open: ${openCount}, Resolved: ${resolvedCount}\n`);
 
   // 11. Convergence decision
-  const decision = checkConvergence(newState, config.convergence);
+  const decision = checkConvergence(finalState, config.convergence);
   console.log(`Decision: ${decision}`);
 
   // 12. Build review scope for summary
@@ -275,18 +287,18 @@ export async function main(options?: RunOptions) {
 
   // 13. Output: GitHub API for github mode with token, stdout otherwise
   if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
-    await upsertSummaryComment(opts.prNumber, newState, decision, scope);
+    await upsertSummaryComment(opts.prNumber, finalState, decision, scope);
   } else {
     const { renderSummary } = await import(
       "./output/summary-renderer.js"
     );
     console.log("\n--- Summary ---");
-    console.log(renderSummary(newState, decision, opts.mode, scope));
+    console.log(renderSummary(finalState, decision, opts.mode, scope));
   }
 
   // 14. Save state (local mode only; GitHub mode persists via comment)
   if (opts.mode === "local") {
-    await saveState(opts.stateDir, newState);
+    await saveState(opts.stateDir, finalState);
   }
 
   console.log("\nAI Review — Done.");

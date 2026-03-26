@@ -24,6 +24,17 @@ export interface RoundHistory {
   findings_resolved: string[];
 }
 
+export interface RecurrenceSuppression {
+  originalFindingId: string;
+  suppressedAtRound: number;
+  file: string;
+  category: string;
+  suppressedSummary?: string;
+}
+
+/** Minimal shape for finding location matching */
+export type FindingLocation = Pick<Finding, "file" | "line_start" | "line_end" | "category">;
+
 export interface ReviewState {
   schema_version: string;
   pr_number: number;
@@ -35,6 +46,7 @@ export interface ReviewState {
   findings: StateFinding[];
   round_history: RoundHistory[];
   decisions: string[];
+  recurrence_suppressions?: RecurrenceSuppression[];
 }
 
 function stateFilePath(stateDir: string, stateKey: string): string {
@@ -133,17 +145,7 @@ export function updateState(
   const updatedFindings = state.findings.map((existing) => {
     if (existing.status !== "open") return existing;
 
-    const stillExists = newFindings.some(
-      (nf) =>
-        nf.file === existing.file &&
-        nf.category === existing.category &&
-        linesOverlap(
-          nf.line_start,
-          nf.line_end,
-          existing.line_start,
-          existing.line_end
-        )
-    );
+    const stillExists = newFindings.some((nf) => findingsMatch(nf, existing));
 
     if (!stillExists) {
       resolved.push(existing.id);
@@ -165,16 +167,7 @@ export function updateState(
   const addedFindings: StateFinding[] = [];
   for (const nf of newFindings) {
     const existingMatch = updatedFindings.find(
-      (ef) =>
-        ef.status === "open" &&
-        ef.file === nf.file &&
-        ef.category === nf.category &&
-        linesOverlap(
-          nf.line_start,
-          nf.line_end,
-          ef.line_start,
-          ef.line_end
-        )
+      (ef) => ef.status === "open" && findingsMatch(nf, ef)
     );
 
     if (!existingMatch) {
@@ -223,7 +216,16 @@ export async function saveState(
   console.log(`  State saved → ${filePath}`);
 }
 
-// ---- Helpers (exported for testing) ----
+// ---- Helpers (exported for reuse and testing) ----
+
+/** Check if two findings refer to the same location: file + category + overlapping lines */
+export function findingsMatch(a: FindingLocation, b: FindingLocation): boolean {
+  return (
+    a.file === b.file &&
+    a.category === b.category &&
+    linesOverlap(a.line_start, a.line_end, b.line_start, b.line_end)
+  );
+}
 
 export function linesOverlap(
   aStart: number,
@@ -237,4 +239,35 @@ export function linesOverlap(
 export function generateFindingId(lens: string, index: number): string {
   const prefix = lens.charAt(0); // r, s, b
   return `${prefix}-${String(index + 1).padStart(3, "0")}`;
+}
+
+/** Merge recurrence suppression history into state (immutable, deduped by originalFindingId) */
+export function applyRecurrenceSuppressions(
+  state: ReviewState,
+  directives: readonly {
+    originalFindingId: string;
+    file: string;
+    category: string;
+    suppressedSummary?: string;
+  }[]
+): ReviewState {
+  if (directives.length === 0) return state;
+
+  const existing = state.recurrence_suppressions ?? [];
+  const existingIds = new Set(existing.map((s) => s.originalFindingId));
+
+  const newSuppressions: RecurrenceSuppression[] = directives
+    .filter((d) => !existingIds.has(d.originalFindingId))
+    .map((d) => ({
+      originalFindingId: d.originalFindingId,
+      suppressedAtRound: state.current_round,
+      file: d.file,
+      category: d.category,
+      suppressedSummary: d.suppressedSummary,
+    }));
+
+  return {
+    ...state,
+    recurrence_suppressions: [...existing, ...newSuppressions],
+  };
 }
