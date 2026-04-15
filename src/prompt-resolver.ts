@@ -2,7 +2,7 @@ import { readFile, writeFile, rm } from "fs/promises";
 import { existsSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
-import type { LensConfig } from "./config.js";
+import type { LensConfig, SkillConfig } from "./config.js";
 
 // ============================================================
 // Prompt Resolution: LensConfig -> absolute prompt file path
@@ -106,5 +106,34 @@ export async function validatePrompts(
 
   if (errors.length > 0) {
     throw new Error(`Prompt validation failed:\n  ${errors.join("\n  ")}`);
+  }
+}
+
+/**
+ * Resolve a skill's prompt file to an absolute path.
+ * Skill prompts are always custom (repo-relative), no builtin/extended logic.
+ */
+export function resolveSkillPromptPath(promptFile: string, repoRoot: string): string {
+  return join(repoRoot, promptFile);
+}
+
+/**
+ * Validate that all skill prompt files exist.
+ */
+export async function validateSkillPrompts(
+  skills: readonly SkillConfig[],
+  repoRoot: string,
+): Promise<void> {
+  const errors: string[] = [];
+
+  for (const skill of skills) {
+    const path = resolveSkillPromptPath(skill.promptFile, repoRoot);
+    if (!existsSync(path)) {
+      errors.push(`Skill "${skill.name}": prompt file not found at ${path}`);
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new Error(`Skill prompt validation failed:\n  ${errors.join("\n  ")}`);
   }
 }
