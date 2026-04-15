@@ -687,14 +687,18 @@ describe("loadConfig skills", () => {
     expect(inject.mode).toBe("inject");
     expect(inject.promptFile).toBe("skills/react.md");
     expect(inject.triggers.filePatterns).toEqual(["**/*.tsx"]);
-    expect(inject.attachTo).toEqual(["bug_risk"]);
+    if (inject.mode === "inject") {
+      expect(inject.attachTo).toEqual(["bug_risk"]);
+    }
 
     const standalone = config.skills.find((s) => s.name === "sql_check")!;
     expect(standalone.mode).toBe("standalone");
-    expect(standalone.cli).toBe("claude");
-    expect(standalone.model).toBe("claude-sonnet-4-6");
-    expect(standalone.toolPolicy).toEqual({ type: "read_only" });
-    expect(standalone.timeoutMs).toBe(300000);
+    if (standalone.mode === "standalone") {
+      expect(standalone.cli).toBe("claude");
+      expect(standalone.model).toBe("claude-sonnet-4-6");
+      expect(standalone.toolPolicy).toEqual({ type: "read_only" });
+      expect(standalone.timeoutMs).toBe(300000);
+    }
   });
 
   it("defaults skills to empty array when not specified", async () => {
