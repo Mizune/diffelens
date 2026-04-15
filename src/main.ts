@@ -28,7 +28,9 @@ import { filterDiffByExcludePatterns } from "./filters.js";
 import { resolveOptions, type RunOptions } from "./options.js";
 import { fetchDiff, hashDiff, resolveGitRef, parseDiffStats, parseDiffFiles } from "./diff.js";
 import { collectProjectContext, formatProjectContext } from "./project-context.js";
-import { resolvePrompt, validatePrompts } from "./prompt-resolver.js";
+import { resolvePrompt, resolveSkillPromptPath, validatePrompts, validateSkillPrompts } from "./prompt-resolver.js";
+import { resolveSkills, skillRunName } from "./skill-resolver.js";
+import { injectSkillContent } from "./skill-prompt-injector.js";
 import type { ReviewScope, LensStat } from "./output/summary-renderer.js";
 
 // ============================================================
@@ -178,29 +180,68 @@ export async function main(options?: RunOptions) {
     );
   }
 
-  // 7. Validate prompts + run all lenses in parallel
+  // 7. Validate all prompts (lenses + skills) before any I/O
   await validatePrompts(activeLenses, opts.repoRoot, opts.diffelensRoot);
+  if (config.skills.length > 0) {
+    await validateSkillPrompts(config.skills, opts.repoRoot);
+  }
+
+  // 8. Resolve skills (evaluate triggers against diff files)
+  const diffFiles = parseDiffFiles(diff);
+  const resolvedSkills = await resolveSkills(config, diffFiles, opts.repoRoot);
+
+  if (resolvedSkills.activatedSkills.length > 0) {
+    console.log(`Skills activated: ${resolvedSkills.activatedSkills.join(", ")}`);
+  }
 
   for (const lens of activeLenses) {
     console.log(`  [${lens.name}] prompt: ${lens.promptSource}${lens.promptAppendFile ? ` (+${lens.promptAppendFile})` : ""}`);
   }
 
+  // Filter standalone skills by CLI availability
+  const activeStandaloneSkills = resolvedSkills.standaloneSkills.filter((s) => {
+    if (!availability[s.cli]) {
+      console.warn(
+        `Warning: Skill "${s.name}" requires "${s.cli}" but not available. Skipping.`
+      );
+      return false;
+    }
+    return true;
+  });
+
+  const standaloneCount = activeStandaloneSkills.length;
+  const skillSuffix = standaloneCount > 0 ? ` + ${standaloneCount} standalone skills` : "";
   console.log(
-    `\nRunning ${activeLenses.length} lenses in parallel...\n`
+    `\nRunning ${activeLenses.length} lenses${skillSuffix} in parallel...\n`
   );
 
-  const results = await Promise.allSettled(
-    activeLenses.map(async (lens) => {
-      const resolved = await resolvePrompt(lens, opts.repoRoot, opts.diffelensRoot);
-      try {
-        return await runLens(lens, diff, state, opts.repoRoot, resolved.absolutePath, projectContextStr);
-      } finally {
-        await resolved.cleanup();
-      }
-    })
-  );
+  // 9. Run all lenses (with inject skills applied) + standalone skills in parallel
+  const lensPromises = activeLenses.map(async (lens) => {
+    let resolved: Awaited<ReturnType<typeof resolvePrompt>> | undefined;
+    let injected: Awaited<ReturnType<typeof injectSkillContent>> | undefined;
+    try {
+      resolved = await resolvePrompt(lens, opts.repoRoot, opts.diffelensRoot);
+      injected = await injectSkillContent(
+        resolved,
+        resolvedSkills.injections.get(lens.name),
+        lens.name,
+      );
+      return await runLens(lens, diff, state, opts.repoRoot, injected.absolutePath, projectContextStr, "lens");
+    } finally {
+      // Clean up whichever temp file was created last (injection wraps the resolved prompt)
+      await (injected ?? resolved)?.cleanup();
+    }
+  });
 
-  // 7. Collect results + build lens stats for review scope
+  const skillPromises = activeStandaloneSkills.map(async (skill) => {
+    const promptPath = resolveSkillPromptPath(skill.promptFile, opts.repoRoot);
+    const skillRunContext = { ...skill, name: skillRunName(skill.name) };
+    return await runLens(skillRunContext, diff, state, opts.repoRoot, promptPath, projectContextStr, "skill");
+  });
+
+  const results = await Promise.allSettled([...lensPromises, ...skillPromises]);
+
+  // 10. Collect results + build lens stats for review scope
   const allFindings: Finding[] = [];
   const lensStats: LensStat[] = [];
   for (const result of results) {
@@ -219,6 +260,7 @@ export async function main(options?: RunOptions) {
       }
       lensStats.push({
         name: r.lens,
+        type: r.type,
         cli: r.cli,
         durationMs: r.durationMs,
         success: r.success,
@@ -233,7 +275,7 @@ export async function main(options?: RunOptions) {
 
   console.log("");
 
-  // 8. Severity filter based on round (applies only to new findings)
+  // 11. Severity filter based on round (applies only to new findings)
   const filtered = filterBySeverityForRound(
     allFindings,
     state.current_round,
@@ -243,11 +285,11 @@ export async function main(options?: RunOptions) {
     `Findings: ${allFindings.length} raw -> ${filtered.length} after severity filter`
   );
 
-  // 9. Deduplicate
+  // 12. Deduplicate
   const deduplicated = deduplicateFindings(filtered);
   console.log(`  -> ${deduplicated.length} after deduplication`);
 
-  // 9a. Recurrence detection
+  // 12a. Recurrence detection
   const recurrence = detectAndSuppressRecurrences(state, deduplicated);
   if (recurrence.directives.length > 0) {
     console.log(
@@ -256,7 +298,7 @@ export async function main(options?: RunOptions) {
     );
   }
 
-  // 10. Update state
+  // 13. Update state
   const newState = updateState(state, recurrence.findings, headSha);
   const finalState = applyRecurrenceSuppressions(newState, recurrence.directives);
   const openCount = finalState.findings.filter(
@@ -267,12 +309,11 @@ export async function main(options?: RunOptions) {
   ).length;
   console.log(`  Open: ${openCount}, Resolved: ${resolvedCount}\n`);
 
-  // 11. Convergence decision
+  // 14. Convergence decision
   const decision = checkConvergence(finalState, config.convergence);
   console.log(`Decision: ${decision}`);
 
-  // 12. Build review scope for summary
-  const diffFiles = parseDiffFiles(diff);
+  // 15. Build review scope for summary
   const changeSummary = results
     .filter((r): r is PromiseFulfilledResult<LensRunResult> => r.status === "fulfilled")
     .map((r) => r.value.output?.change_summary)
@@ -285,9 +326,9 @@ export async function main(options?: RunOptions) {
     lensStats,
   };
 
-  // 13. Output: GitHub API for github mode with token, stdout otherwise
+  // 16. Output: GitHub API for github mode with token, stdout otherwise
   if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
-    await upsertSummaryComment(opts.prNumber, finalState, decision, scope);
+    await upsertSummaryComment(opts.prNumber, finalState, decision, scope, config.output);
   } else {
     const { renderSummary } = await import(
       "./output/summary-renderer.js"
@@ -296,7 +337,7 @@ export async function main(options?: RunOptions) {
     console.log(renderSummary(finalState, decision, opts.mode, scope));
   }
 
-  // 14. Save state (local mode only; GitHub mode persists via comment)
+  // 17. Save state (local mode only; GitHub mode persists via comment)
   if (opts.mode === "local") {
     await saveState(opts.stateDir, finalState);
   }

@@ -617,3 +617,280 @@ lenses:
     expect(readability?.cli).toBe("claude");
   });
 });
+
+// ============================================================
+// Skills config
+// ============================================================
+
+const YAML_WITH_SKILLS = `
+version: "1.0"
+global:
+  max_rounds: 3
+  language: "en"
+  default_cli: "claude"
+  timeout_ms: 120000
+lenses:
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "tempdir"
+    tool_policy: "none"
+  bug_risk:
+    enabled: true
+    model: "sonnet"
+    isolation: "repo"
+    tool_policy: "none"
+skills:
+  react_hooks:
+    enabled: true
+    mode: "inject"
+    prompt_file: "skills/react.md"
+    triggers:
+      file_patterns: ["**/*.tsx"]
+    attach_to: ["bug_risk"]
+  sql_check:
+    enabled: true
+    mode: "standalone"
+    prompt_file: "skills/sql.md"
+    triggers:
+      file_patterns: ["**/*.sql"]
+    cli: "claude"
+    model: "claude-sonnet-4-6"
+    isolation: "repo"
+    tool_policy: "read_only"
+    timeout_ms: 300000
+    severity_cap: "blocker"
+  always_skill:
+    enabled: false
+    mode: "inject"
+    prompt_file: "skills/always.md"
+    triggers:
+      always: true
+    attach_to: ["readability"]
+convergence:
+  round_severities:
+    - ["blocker", "warning", "nitpick"]
+  approve_condition: "zero_blockers"
+filters:
+  exclude_patterns: []
+`;
+
+describe("loadConfig skills", () => {
+  it("parses inject and standalone skills", async () => {
+    const path = await writeYamlConfig(YAML_WITH_SKILLS);
+    const config = await loadConfig(path);
+
+    // Only enabled skills are loaded
+    expect(config.skills).toHaveLength(2);
+
+    const inject = config.skills.find((s) => s.name === "react_hooks")!;
+    expect(inject.mode).toBe("inject");
+    expect(inject.promptFile).toBe("skills/react.md");
+    expect(inject.triggers.filePatterns).toEqual(["**/*.tsx"]);
+    if (inject.mode === "inject") {
+      expect(inject.attachTo).toEqual(["bug_risk"]);
+    }
+
+    const standalone = config.skills.find((s) => s.name === "sql_check")!;
+    expect(standalone.mode).toBe("standalone");
+    if (standalone.mode === "standalone") {
+      expect(standalone.cli).toBe("claude");
+      expect(standalone.model).toBe("claude-sonnet-4-6");
+      expect(standalone.toolPolicy).toEqual({ type: "read_only" });
+      expect(standalone.timeoutMs).toBe(300000);
+    }
+  });
+
+  it("defaults skills to empty array when not specified", async () => {
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
+    expect(config.skills).toEqual([]);
+  });
+
+  /** Helper: wrap a skill YAML block in a minimal valid config */
+  const skillErrorYaml = (skillBlock: string) => `
+version: "1.0"
+global:
+  max_rounds: 3
+  language: "en"
+  default_cli: "claude"
+  timeout_ms: 120000
+lenses:
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "tempdir"
+    tool_policy: "none"
+skills:
+${skillBlock}
+convergence:
+  round_severities:
+    - ["blocker"]
+  approve_condition: "zero_blockers"
+`;
+
+  it("throws when inject skill has no attach_to", async () => {
+    const path = await writeYamlConfig(skillErrorYaml(`
+  bad_skill:
+    enabled: true
+    mode: "inject"
+    prompt_file: "skills/bad.md"
+    triggers:
+      always: true`));
+    await expect(loadConfig(path)).rejects.toThrow(
+      'Inject skill "bad_skill" requires attach_to'
+    );
+  });
+
+  it("throws when inject skill references unknown lens", async () => {
+    const path = await writeYamlConfig(skillErrorYaml(`
+  bad_skill:
+    enabled: true
+    mode: "inject"
+    prompt_file: "skills/bad.md"
+    triggers:
+      always: true
+    attach_to: ["nonexistent_lens"]`));
+    await expect(loadConfig(path)).rejects.toThrow(
+      'targets unknown lens "nonexistent_lens"'
+    );
+  });
+
+  it("throws when standalone skill has no model", async () => {
+    const path = await writeYamlConfig(skillErrorYaml(`
+  bad_skill:
+    enabled: true
+    mode: "standalone"
+    prompt_file: "skills/bad.md"
+    triggers:
+      always: true`));
+    await expect(loadConfig(path)).rejects.toThrow(
+      'Standalone skill "bad_skill" requires a model'
+    );
+  });
+
+  it("throws when skill has no trigger condition", async () => {
+    const path = await writeYamlConfig(skillErrorYaml(`
+  bad_skill:
+    enabled: true
+    mode: "inject"
+    prompt_file: "skills/bad.md"
+    triggers:
+      file_patterns: []
+    attach_to: ["readability"]`));
+    await expect(loadConfig(path)).rejects.toThrow(
+      'requires at least one trigger condition'
+    );
+  });
+});
+
+// ============================================================
+// Output config
+// ============================================================
+
+describe("loadConfig output", () => {
+  it("defaults output to autoApprove: false, onIssues: comment", async () => {
+    const path = await writeYamlConfig(FULL_YAML);
+    const config = await loadConfig(path);
+
+    expect(config.output.github.autoApprove).toBe(false);
+    expect(config.output.github.onIssues).toBe("comment");
+  });
+
+  it("parses output config", async () => {
+    const path = await writeYamlConfig(`
+version: "1.0"
+global:
+  max_rounds: 3
+  language: "en"
+  default_cli: "claude"
+  timeout_ms: 120000
+lenses:
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "tempdir"
+    tool_policy: "none"
+convergence:
+  round_severities:
+    - ["blocker"]
+  approve_condition: "zero_blockers"
+output:
+  github:
+    auto_approve: true
+    on_issues: "request_changes"
+`);
+    const config = await loadConfig(path);
+
+    expect(config.output.github.autoApprove).toBe(true);
+    expect(config.output.github.onIssues).toBe("request_changes");
+  });
+
+  it("partial output config uses defaults for missing fields", async () => {
+    const path = await writeYamlConfig(`
+version: "1.0"
+global:
+  max_rounds: 3
+  language: "en"
+  default_cli: "claude"
+  timeout_ms: 120000
+lenses:
+  readability:
+    enabled: true
+    model: "sonnet"
+    isolation: "tempdir"
+    tool_policy: "none"
+convergence:
+  round_severities:
+    - ["blocker"]
+  approve_condition: "zero_blockers"
+output:
+  github:
+    auto_approve: true
+`);
+    const config = await loadConfig(path);
+
+    expect(config.output.github.autoApprove).toBe(true);
+    expect(config.output.github.onIssues).toBe("comment");
+  });
+});
+
+// ============================================================
+// deepMergeRawConfig — skills and output
+// ============================================================
+
+describe("deepMergeRawConfig skills and output", () => {
+  it("merges skills from overlay", () => {
+    const base = makeRawConfig();
+    const overlay = {
+      skills: {
+        react: {
+          enabled: true,
+          mode: "inject",
+          prompt_file: "skills/react.md",
+          triggers: { always: true },
+          attach_to: ["readability"],
+        },
+      },
+    };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.skills).toBeDefined();
+    expect(merged.skills!["react"]).toMatchObject({
+      enabled: true,
+      mode: "inject",
+    });
+  });
+
+  it("merges output from overlay", () => {
+    const base = {
+      ...makeRawConfig(),
+      output: { github: { auto_approve: false, on_issues: "comment" as const } },
+    };
+    const overlay = { output: { github: { auto_approve: true } } };
+    const merged = deepMergeRawConfig(base, overlay);
+
+    expect(merged.output!.github!.auto_approve).toBe(true);
+    expect(merged.output!.github!.on_issues).toBe("comment");
+  });
+});

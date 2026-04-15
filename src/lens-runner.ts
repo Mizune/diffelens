@@ -3,16 +3,17 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { getAdapter } from "./adapters/index.js";
 import type { CLIRequest, LensOutput, Finding } from "./adapters/index.js";
-import type { LensConfig } from "./config.js";
+import type { RunContext } from "./config.js";
 import type { ReviewState } from "./state/review-state.js";
 import { SEVERITY_RANK } from "./severity.js";
 
 // ============================================================
-// Lens Execution: LensConfig -> CLIAdapter -> LensRunResult
+// Lens/Skill Execution: RunContext -> CLIAdapter -> LensRunResult
 // ============================================================
 
 export interface LensRunResult {
   lens: string;
+  type: "lens" | "skill";
   cli: string;
   output: LensOutput | null;
   durationMs: number;
@@ -21,12 +22,13 @@ export interface LensRunResult {
 }
 
 export async function runLens(
-  config: LensConfig,
+  config: RunContext,
   diff: string,
   state: ReviewState,
   repoRoot: string,
   resolvedPromptPath: string,
-  projectContext?: string
+  projectContext?: string,
+  type: "lens" | "skill" = "lens"
 ): Promise<LensRunResult> {
   const adapter = await getAdapter(config.cli);
 
@@ -70,6 +72,7 @@ export async function runLens(
       }
       return {
         lens: config.name,
+        type,
         cli: adapter.name,
         output: null,
         durationMs: response.durationMs,
@@ -92,6 +95,7 @@ export async function runLens(
 
     return {
       lens: config.name,
+      type,
       cli: adapter.name,
       output,
       durationMs: response.durationMs,
@@ -109,7 +113,7 @@ export async function runLens(
  */
 function applySeverityCap(
   parsed: LensOutput | null,
-  config: LensConfig
+  config: RunContext
 ): LensOutput | null {
   if (!parsed) return null;
 

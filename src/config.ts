@@ -16,18 +16,26 @@ export interface GlobalConfig {
   base_url?: string;
 }
 
-export interface LensConfig {
-  name: string;
+/** Shared execution fields between lenses and standalone skills */
+export interface ExecutionConfig {
   cli: CLIName;
   model: string;
-  promptFile: string;
-  promptSource: "builtin" | "custom" | "extended";
-  promptAppendFile?: string;
   toolPolicy: ToolPolicy;
   timeoutMs: number;
   isolation: "tempdir" | "repo";
   severityCap: "blocker" | "warning" | "nitpick";
   baseUrl?: string;
+}
+
+/** Minimal context needed to execute a review run (used by runLens) */
+export interface RunContext extends ExecutionConfig {
+  name: string;
+}
+
+export interface LensConfig extends RunContext {
+  promptFile: string;
+  promptSource: "builtin" | "custom" | "extended";
+  promptAppendFile?: string;
 }
 
 export interface ConvergenceConfig {
@@ -51,11 +59,45 @@ interface RawConvergenceNew {
 
 type RawConvergenceConfig = RawConvergenceLegacy | RawConvergenceNew;
 
+export interface SkillTriggers {
+  filePatterns?: string[];
+  always?: boolean;
+}
+
+interface SkillBase {
+  name: string;
+  enabled: boolean;
+  promptFile: string;
+  triggers: SkillTriggers;
+}
+
+export interface InjectSkillConfig extends SkillBase {
+  mode: "inject";
+  attachTo: string[];
+}
+
+export interface StandaloneSkillConfig extends SkillBase, ExecutionConfig {
+  mode: "standalone";
+}
+
+export type SkillConfig = InjectSkillConfig | StandaloneSkillConfig;
+
+export interface GitHubOutputConfig {
+  autoApprove: boolean;
+  onIssues: "request_changes" | "comment";
+}
+
+export interface OutputConfig {
+  github: GitHubOutputConfig;
+}
+
 export interface ReviewConfig {
   global: GlobalConfig;
   lenses: LensConfig[];
+  skills: SkillConfig[];
   convergence: ConvergenceConfig;
   filters: { exclude_patterns: string[] };
+  output: OutputConfig;
 }
 
 interface RawLensConfig {
@@ -71,6 +113,31 @@ interface RawLensConfig {
   base_url?: string;
 }
 
+interface RawSkillConfig {
+  enabled: boolean;
+  mode: "inject" | "standalone";
+  prompt_file: string;
+  triggers?: {
+    file_patterns?: string[];
+    always?: boolean;
+  };
+  attach_to?: string[];
+  cli?: CLIName;
+  model?: string;
+  isolation?: "tempdir" | "repo";
+  tool_policy?: "none" | "read_only" | "all" | { type: "explicit"; tools: string[] };
+  timeout_ms?: number;
+  severity_cap?: "blocker" | "warning" | "nitpick";
+  base_url?: string;
+}
+
+interface RawOutputConfig {
+  github?: {
+    auto_approve?: boolean;
+    on_issues?: "request_changes" | "comment";
+  };
+}
+
 interface RawConfig {
   version: string;
   global: {
@@ -81,8 +148,10 @@ interface RawConfig {
     base_url?: string;
   };
   lenses: Record<string, RawLensConfig>;
+  skills?: Record<string, RawSkillConfig>;
   convergence: RawConvergenceConfig;
   filters: { exclude_patterns: string[] };
+  output?: RawOutputConfig;
 }
 
 export const LOCAL_CONFIG_FILENAME = ".diffelens.local.yaml";
@@ -155,11 +224,148 @@ function normalizeRawConfig(raw: RawConfig): ReviewConfig {
     });
   }
 
+  const enabledLensNames = new Set(lenses.map((l) => l.name));
+  const allDeclaredLensNames = new Set(Object.keys(raw.lenses));
+  const skills = normalizeSkills(raw.skills ?? {}, raw.global, enabledLensNames, allDeclaredLensNames);
+  const output = normalizeOutput(raw.output);
+
   return {
     global: raw.global,
     lenses,
+    skills,
     convergence: normalizeConvergence(raw.convergence),
     filters: raw.filters ?? { exclude_patterns: [] },
+    output,
+  };
+}
+
+function validateSkillTriggers(name: string, skill: RawSkillConfig): SkillTriggers {
+  const triggers: SkillTriggers = {
+    filePatterns: skill.triggers?.file_patterns,
+    always: skill.triggers?.always,
+  };
+
+  const hasFilePatterns = (triggers.filePatterns?.length ?? 0) > 0;
+  if (!hasFilePatterns && triggers.always !== true) {
+    throw new Error(
+      `Skill "${name}" requires at least one trigger condition (file_patterns or always: true)`
+    );
+  }
+
+  return triggers;
+}
+
+function buildInjectSkill(
+  name: string,
+  skill: RawSkillConfig,
+  triggers: SkillTriggers,
+  enabledLensNames: Set<string>,
+  allDeclaredLensNames: Set<string>
+): InjectSkillConfig {
+  if (!skill.attach_to || skill.attach_to.length === 0) {
+    throw new Error(`Inject skill "${name}" requires attach_to with at least one lens name`);
+  }
+  for (const lensName of skill.attach_to) {
+    if (!enabledLensNames.has(lensName)) {
+      const lensStatus = allDeclaredLensNames.has(lensName) ? "disabled" : "unknown";
+      throw new Error(`Inject skill "${name}" targets ${lensStatus} lens "${lensName}" in attach_to`);
+    }
+  }
+
+  return {
+    name,
+    enabled: true,
+    mode: "inject",
+    promptFile: skill.prompt_file,
+    triggers,
+    attachTo: skill.attach_to,
+  };
+}
+
+function buildStandaloneSkill(
+  name: string,
+  skill: RawSkillConfig,
+  triggers: SkillTriggers,
+  globalConfig: RawConfig["global"]
+): StandaloneSkillConfig {
+  if (!skill.model) {
+    throw new Error(`Standalone skill "${name}" requires a model`);
+  }
+  if (skill.base_url) {
+    validateBaseUrl(skill.base_url, `skill "${name}"`);
+  }
+
+  return {
+    name,
+    enabled: true,
+    mode: "standalone",
+    promptFile: skill.prompt_file,
+    triggers,
+    cli: skill.cli ?? globalConfig.default_cli,
+    model: skill.model,
+    isolation: skill.isolation ?? "repo",
+    toolPolicy: skill.tool_policy ? normalizeToolPolicy(skill.tool_policy) : { type: "none" },
+    timeoutMs: skill.timeout_ms ?? globalConfig.timeout_ms,
+    severityCap: skill.severity_cap ?? "blocker",
+    baseUrl: skill.base_url ?? globalConfig.base_url,
+  };
+}
+
+function normalizeSkills(
+  rawSkills: Record<string, RawSkillConfig>,
+  globalConfig: RawConfig["global"],
+  enabledLensNames: Set<string>,
+  allDeclaredLensNames: Set<string>
+): SkillConfig[] {
+  const skills: SkillConfig[] = [];
+
+  for (const [name, skill] of Object.entries(rawSkills)) {
+    if (!skill.enabled) continue;
+
+    if (!skill.prompt_file) {
+      throw new Error(`Skill "${name}" requires a prompt_file`);
+    }
+
+    const triggers = validateSkillTriggers(name, skill);
+
+    if (skill.mode === "standalone") {
+      skills.push(buildStandaloneSkill(name, skill, triggers, globalConfig));
+    } else if (skill.mode === "inject") {
+      skills.push(buildInjectSkill(name, skill, triggers, enabledLensNames, allDeclaredLensNames));
+    } else {
+      throw new Error(
+        `Skill "${name}" has invalid mode "${skill.mode}". Valid values: inject, standalone`
+      );
+    }
+  }
+
+  return skills;
+}
+
+function defaultOutput(): OutputConfig {
+  return {
+    github: {
+      autoApprove: false,
+      onIssues: "comment",
+    },
+  };
+}
+
+function normalizeOutput(raw?: RawOutputConfig): OutputConfig {
+  if (!raw) return defaultOutput();
+
+  const onIssues = raw.github?.on_issues ?? "comment";
+  if (onIssues !== "request_changes" && onIssues !== "comment") {
+    throw new Error(
+      `Invalid output.github.on_issues: "${onIssues}". Valid values: request_changes, comment`
+    );
+  }
+
+  return {
+    github: {
+      autoApprove: raw.github?.auto_approve ?? false,
+      onIssues,
+    },
   };
 }
 
@@ -212,6 +418,33 @@ export function deepMergeRawConfig(base: RawConfig, overlay: Record<string, unkn
     if (overlayFilters.exclude_patterns) {
       merged.filters = { ...base.filters, exclude_patterns: overlayFilters.exclude_patterns };
     }
+  }
+
+  // skills: per-skill field-level merge (same pattern as lenses)
+  if (overlay.skills && typeof overlay.skills === "object") {
+    const overlaySkills = overlay.skills as Record<string, Partial<RawSkillConfig>>;
+    const mergedSkills = { ...(base.skills ?? {}) };
+    for (const [name, skillOverlay] of Object.entries(overlaySkills)) {
+      if (name in mergedSkills) {
+        mergedSkills[name] = { ...mergedSkills[name], ...skillOverlay };
+      } else {
+        mergedSkills[name] = skillOverlay as RawSkillConfig;
+      }
+    }
+    merged.skills = mergedSkills;
+  }
+
+  // output: deep merge github sub-object
+  if (overlay.output && typeof overlay.output === "object") {
+    const overlayOutput = overlay.output as Partial<RawOutputConfig>;
+    const baseOutput = base.output ?? {};
+    merged.output = {
+      ...baseOutput,
+      github: {
+        ...(baseOutput.github ?? {}),
+        ...(overlayOutput.github ?? {}),
+      },
+    };
   }
 
   // version: overlay wins if present

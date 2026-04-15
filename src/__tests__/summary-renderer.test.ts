@@ -128,9 +128,9 @@ describe("renderSummary with ReviewScope", () => {
     diffFiles: ["src/main.ts", "src/config.ts"],
     changeSummary: null,
     lensStats: [
-      { name: "readability", cli: "gemini", durationMs: 12300, success: true, assessment: "clean", exploredFiles: null, findingCount: 0 },
-      { name: "architectural", cli: "gemini", durationMs: 18500, success: true, assessment: "clean", exploredFiles: 8, findingCount: 0 },
-      { name: "bug_risk", cli: "gemini", durationMs: 21100, success: true, assessment: "minor_issues", exploredFiles: 5, findingCount: 3 },
+      { name: "readability", type: "lens", cli: "gemini", durationMs: 12300, success: true, assessment: "clean", exploredFiles: null, findingCount: 0 },
+      { name: "architectural", type: "lens", cli: "gemini", durationMs: 18500, success: true, assessment: "clean", exploredFiles: 8, findingCount: 0 },
+      { name: "bug_risk", type: "lens", cli: "gemini", durationMs: 21100, success: true, assessment: "minor_issues", exploredFiles: 5, findingCount: 3 },
     ],
   };
 
@@ -143,9 +143,9 @@ describe("renderSummary with ReviewScope", () => {
 
   it("renders per-lens stats table", () => {
     const result = renderSummary(makeState(), "approve", "github", scope);
-    expect(result).toContain("| readability | gemini | 12.3s | 2 files (diff) | clean |");
-    expect(result).toContain("| architectural | gemini | 18.5s | 8 files | clean |");
-    expect(result).toContain("| bug_risk | gemini | 21.1s | 5 files | minor issues (3) |");
+    expect(result).toContain("| readability | lens | gemini | 12.3s | 2 files (diff) | clean |");
+    expect(result).toContain("| architectural | lens | gemini | 18.5s | 8 files | clean |");
+    expect(result).toContain("| bug_risk | lens | gemini | 21.1s | 5 files | minor issues (3) |");
   });
 
   it("shows error for failed lens", () => {
@@ -154,8 +154,8 @@ describe("renderSummary with ReviewScope", () => {
       diffFiles: ["a.ts", "b.ts", "c.ts", "d.ts", "e.ts"],
       changeSummary: null,
       lensStats: [
-        { name: "readability", cli: "gemini", durationMs: 1200, success: false, assessment: null, exploredFiles: null, findingCount: null },
-        { name: "architectural", cli: "gemini", durationMs: 15000, success: true, assessment: "clean", exploredFiles: 3, findingCount: 0 },
+        { name: "readability", type: "lens", cli: "gemini", durationMs: 1200, success: false, assessment: null, exploredFiles: null, findingCount: null },
+        { name: "architectural", type: "lens", cli: "gemini", durationMs: 15000, success: true, assessment: "clean", exploredFiles: 3, findingCount: 0 },
       ],
     };
     const result = renderSummary(makeState(), "approve", "github", failedScope);
