@@ -1,6 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import type { ReviewState } from "../state/review-state.js";
 import type { ReviewDecision } from "../convergence.js";
+import type { OutputConfig } from "../config.js";
 import { renderSummary, MARKER, type ReviewScope } from "./summary-renderer.js";
 import { embedState, extractState } from "./comment-state.js";
 
@@ -60,7 +61,8 @@ export async function upsertSummaryComment(
   prNumber: number,
   state: ReviewState,
   decision: ReviewDecision,
-  scope?: ReviewScope
+  scope?: ReviewScope,
+  outputConfig?: OutputConfig
 ): Promise<void> {
   const octokit = getOctokit();
   const { owner, repo } = parseRepo();
@@ -95,21 +97,61 @@ export async function upsertSummaryComment(
     console.log(`  Summary comment created (comment_id: ${data.id})`);
   }
 
-  // Also set PR review status (optional)
-  if (decision === "approve") {
+  // Submit PR review based on output config
+  const reviewAction = resolveReviewAction(decision, outputConfig);
+  if (reviewAction) {
     try {
       await octokit.pulls.createReview({
         owner,
         repo,
         pull_number: prNumber,
-        event: "APPROVE",
-        body: "🤖 AI Review: All blockers resolved.",
+        event: reviewAction.event,
+        body: reviewAction.body,
       });
+      console.log(`  PR review submitted: ${reviewAction.event}`);
     } catch (e) {
-      // Ignore if no APPROVE permission
-      console.warn(`  Could not submit approval: ${e}`);
+      console.warn(`  Could not submit PR review (${reviewAction.event}): ${e}`);
     }
   }
+}
+
+/**
+ * Determine the PR review action based on convergence decision and output config.
+ *
+ * - autoApprove: false → never submit APPROVE or REQUEST_CHANGES
+ * - autoApprove: true + approve → APPROVE
+ * - autoApprove: true + request_changes → onIssues setting
+ * - onIssues: "comment" → no review action for issues
+ * - onIssues: "request_changes" → REQUEST_CHANGES review
+ */
+function resolveReviewAction(
+  decision: ReviewDecision,
+  outputConfig?: OutputConfig
+): { event: "APPROVE" | "REQUEST_CHANGES"; body: string } | null {
+  const githubConfig = outputConfig?.github;
+
+  // Default: no review actions. Previous versions auto-approved unconditionally;
+  // autoApprove now requires explicit opt-in via output.github.auto_approve: true.
+  if (!githubConfig?.autoApprove) return null;
+
+  if (decision === "approve") {
+    return {
+      event: "APPROVE",
+      body: "🤖 AI Review: All blockers resolved.",
+    };
+  }
+
+  if (
+    (decision === "request_changes" || decision === "escalate") &&
+    githubConfig.onIssues === "request_changes"
+  ) {
+    const body = decision === "escalate"
+      ? "🤖 AI Review: Escalated — unresolved issues after max rounds."
+      : "🤖 AI Review: Issues found that require attention.";
+    return { event: "REQUEST_CHANGES", body };
+  }
+
+  return null;
 }
 
 /**

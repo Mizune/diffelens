@@ -10,6 +10,7 @@ const MARKER = "<!-- diffelens-summary -->";
 
 export interface LensStat {
   name: string;
+  type: "lens" | "skill";
   cli: string;
   durationMs: number;
   success: boolean;
@@ -157,9 +158,19 @@ function renderScope(scope: ReviewScope): string[] {
   const successCount = lensStats.filter((l) => l.success).length;
   const total = lensStats.length;
 
-  const lensLabel = successCount === total
-    ? `${total} lenses`
-    : `${successCount}/${total} lenses`;
+  const skillCount = lensStats.filter((l) => l.type === "skill").length;
+  const lensCount = total - skillCount;
+
+  let lensLabel: string;
+  if (skillCount > 0 && successCount === total) {
+    lensLabel = `${lensCount} lenses + ${skillCount} skills`;
+  } else if (skillCount > 0) {
+    lensLabel = `${successCount}/${total} (${lensCount} lenses + ${skillCount} skills)`;
+  } else if (successCount === total) {
+    lensLabel = `${total} lenses`;
+  } else {
+    lensLabel = `${successCount}/${total} lenses`;
+  }
 
   const summaryText = `${lensLabel} reviewed ${diffStats.files} files (+${diffStats.additions} -${diffStats.deletions})`;
 
@@ -179,8 +190,8 @@ function renderScope(scope: ReviewScope): string[] {
   }
 
   lines.push(
-    "| Lens | CLI | Duration | Explored | Result |",
-    "|------|-----|----------|----------|--------|",
+    "| Name | Type | CLI | Duration | Explored | Result |",
+    "|------|------|-----|----------|----------|--------|",
   );
 
   const diffFileCount = diffFiles.length;
@@ -191,7 +202,7 @@ function renderScope(scope: ReviewScope): string[] {
     const result = lens.success
       ? formatResult(lens.assessment, lens.findingCount)
       : "⚠️ error";
-    lines.push(`| ${lens.name} | ${lens.cli} | ${duration} | ${explored} | ${result} |`);
+    lines.push(`| ${lens.name} | ${lens.type} | ${lens.cli} | ${duration} | ${explored} | ${result} |`);
   }
 
   // Changed files list
