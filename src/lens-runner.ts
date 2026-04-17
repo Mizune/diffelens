@@ -66,9 +66,10 @@ export async function runLens(
         `    [${config.name}] CLI failed (exit=${response.exitCode})`
       );
       if (response.rawStderr) {
-        console.error(
-          `    [${config.name}] stderr: ${response.rawStderr.slice(0, 300)}`
-        );
+        console.error(`    [${config.name}] stderr: ${response.rawStderr}`);
+      }
+      if (response.rawStdout) {
+        console.error(`    [${config.name}] stdout: ${response.rawStdout}`);
       }
       return {
         lens: config.name,
@@ -77,8 +78,7 @@ export async function runLens(
         output: null,
         durationMs: response.durationMs,
         success: false,
-        error:
-          response.rawStderr.slice(0, 500) || "Failed to parse output",
+        error: response.rawStderr || "Failed to parse output",
       };
     }
 
