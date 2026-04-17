@@ -190,6 +190,7 @@ function makeOptions(overrides: Partial<RunOptions> = {}): RunOptions {
     diffTarget: "all",
     cliBase: undefined,
     cliHead: undefined,
+    outputFile: undefined,
     ...overrides,
   };
 }

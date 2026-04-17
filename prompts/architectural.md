@@ -58,7 +58,9 @@ Do NOT wrap in code fences. Return pure JSON only.
       "category": "layer_violation",
       "summary": "Description of the issue",
       "suggestion": "Specific improvement suggestion",
-      "references": ["paths/to/referenced/files"]
+      "references": ["paths/to/referenced/files"],
+      "evidence": "Brief explanation of why this was flagged (e.g., which principle is violated, what file/pattern was checked)",
+      "suggestion_diff": "Exact replacement code for the lines (optional, only for simple/obvious fixes)"
     }
   ],
   "explored_files": ["list of files the agent referenced"],

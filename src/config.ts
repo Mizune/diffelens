@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import { existsSync } from "fs";
 import { parse as parseYaml } from "yaml";
 import type { CLIName, ToolPolicy } from "./adapters/index.js";
-import { VALID_SEVERITIES } from "./severity.js";
+import { VALID_SEVERITIES, type Severity } from "./severity.js";
 
 // ============================================================
 // Type definitions and loader for .diffelens.yaml
@@ -85,6 +85,12 @@ export type SkillConfig = InjectSkillConfig | StandaloneSkillConfig;
 export interface GitHubOutputConfig {
   autoApprove: boolean;
   onIssues: "request_changes" | "comment";
+  /** Post findings as inline review comments on the code (default: false) */
+  inlineComments: boolean;
+  /** Maximum number of inline comments per review (default: 25) */
+  maxInlineComments: number;
+  /** Severity levels to post as inline comments (default: ["blocker", "warning"]) */
+  inlineSeverities: Severity[];
 }
 
 export interface OutputConfig {
@@ -135,6 +141,9 @@ interface RawOutputConfig {
   github?: {
     auto_approve?: boolean;
     on_issues?: "request_changes" | "comment";
+    inline_comments?: boolean;
+    max_inline_comments?: number;
+    inline_severities?: Severity[];
   };
 }
 
@@ -342,11 +351,17 @@ function normalizeSkills(
   return skills;
 }
 
+const DEFAULT_INLINE_SEVERITIES: Severity[] = ["blocker", "warning"];
+const DEFAULT_MAX_INLINE_COMMENTS = 25;
+
 function defaultOutput(): OutputConfig {
   return {
     github: {
       autoApprove: false,
       onIssues: "comment",
+      inlineComments: false,
+      maxInlineComments: DEFAULT_MAX_INLINE_COMMENTS,
+      inlineSeverities: DEFAULT_INLINE_SEVERITIES,
     },
   };
 }
@@ -361,10 +376,22 @@ function normalizeOutput(raw?: RawOutputConfig): OutputConfig {
     );
   }
 
+  const inlineSeverities = raw.github?.inline_severities ?? DEFAULT_INLINE_SEVERITIES;
+  for (const sev of inlineSeverities) {
+    if (!VALID_SEVERITIES.has(sev)) {
+      throw new Error(
+        `Invalid severity "${sev}" in output.github.inline_severities. Valid values: ${[...VALID_SEVERITIES].join(", ")}`
+      );
+    }
+  }
+
   return {
     github: {
       autoApprove: raw.github?.auto_approve ?? false,
       onIssues,
+      inlineComments: raw.github?.inline_comments ?? false,
+      maxInlineComments: raw.github?.max_inline_comments ?? 25,
+      inlineSeverities,
     },
   };
 }

@@ -49,7 +49,9 @@ Do NOT wrap in code fences. Return pure JSON only.
       "severity": "warning",
       "category": "naming",
       "summary": "Description of the issue",
-      "suggestion": "Specific improvement suggestion"
+      "suggestion": "Specific improvement suggestion",
+      "evidence": "Brief explanation of why this was flagged (what code pattern triggered it)",
+      "suggestion_diff": "Exact replacement code for the lines (optional, only for simple fixes like renames or typos)"
     }
   ],
   "change_summary": "Brief 1-2 sentence summary of what this PR changes",

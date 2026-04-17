@@ -73,6 +73,10 @@ export interface Finding {
   suggestion: string;
   scenario?: string;
   references?: string[];
+  /** Exact replacement code for GitHub suggestion block (simple fixes only) */
+  suggestion_diff?: string;
+  /** Brief explanation of why this was flagged */
+  evidence?: string;
   // Assigned by lens-runner
   lens?: string;
   id?: string;
