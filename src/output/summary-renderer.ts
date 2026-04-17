@@ -49,8 +49,19 @@ export function renderSummary(
 
   const suppressionCount = state.recurrence_suppressions?.length ?? 0;
 
+  const meta = {
+    decision,
+    round: state.current_round,
+    max_rounds: state.max_rounds,
+    blockers: blockers.length,
+    warnings: warnings.length,
+    nitpicks: nitpicks.length,
+    resolved: resolved.length,
+  };
+
   const lines: string[] = [
     MARKER,
+    `<!-- diffelens-meta: ${JSON.stringify(meta)} -->`,
     `## 🤖 AI Review — Round ${state.current_round}/${state.max_rounds}`,
     "",
     `**${decisionEmoji}**`,

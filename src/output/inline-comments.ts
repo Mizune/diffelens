@@ -7,13 +7,55 @@ import { SEVERITY_RANK, type Severity } from "../severity.js";
 // from StateFinding[] for posting via pulls.createReview
 // ============================================================
 
-/** Regex matching the **[id]** pattern in inline comment bodies (e.g., **[b-001]**) */
+/** Marker prefix for machine-readable metadata in inline comments */
+const FINDING_MARKER_PREFIX = "<!-- diffelens-finding: ";
+const FINDING_MARKER_SUFFIX = " -->";
+
+/** Regex to extract the JSON metadata from an inline comment body */
+const FINDING_MARKER_PATTERN = /<!-- diffelens-finding: ({.*?}) -->/;
+
+/** Legacy regex for **[id]** pattern (fallback for pre-metadata comments) */
 export const FINDING_ID_PATTERN = /\*\*\[([a-z]-\d{3})\]\*\*/;
 
-/** Extract a finding ID from a comment body containing the **[id]** pattern */
+export interface FindingMetadata {
+  id: string;
+  lens: string;
+  round: number;
+  severity: string;
+  category: string;
+}
+
+/** Extract finding metadata from an inline comment body */
+export function extractFindingMetadata(body: string): FindingMetadata | null {
+  const match = body.match(FINDING_MARKER_PATTERN);
+  if (match) {
+    try {
+      return JSON.parse(match[1]) as FindingMetadata;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/** Extract a finding ID from a comment body (metadata marker → legacy **[id]** fallback) */
 export function extractFindingIdFromBody(body: string): string | null {
-  const match = body.match(FINDING_ID_PATTERN);
-  return match ? match[1] : null;
+  const meta = extractFindingMetadata(body);
+  if (meta) return meta.id;
+  const legacyMatch = body.match(FINDING_ID_PATTERN);
+  return legacyMatch ? legacyMatch[1] : null;
+}
+
+/** Build the HTML comment marker for a finding */
+function buildFindingMarker(f: StateFinding): string {
+  const meta: FindingMetadata = {
+    id: f.id,
+    lens: f.lens,
+    round: f.first_raised_round,
+    severity: f.severity,
+    category: f.category,
+  };
+  return `${FINDING_MARKER_PREFIX}${JSON.stringify(meta)}${FINDING_MARKER_SUFFIX}`;
 }
 
 /** Shape expected by octokit.pulls.createReview({ comments }) */
@@ -98,6 +140,9 @@ export function formatInlineBody(f: StateFinding): string {
   const emoji = SEVERITY_EMOJI[f.severity] ?? "";
   const lines: string[] = [];
 
+  // Machine-readable metadata (invisible to humans)
+  lines.push(buildFindingMarker(f));
+
   // Header: [id] severity | category
   lines.push(`**[${f.id}]** ${emoji} ${f.severity} | \`${f.category}\``);
   lines.push("");
@@ -127,7 +172,11 @@ export function formatInlineBody(f: StateFinding): string {
     lines.push(f.evidence);
     lines.push("");
     lines.push("</details>");
+    lines.push("");
   }
+
+  // Action hints for AI/bot consumers (invisible to humans)
+  lines.push(`<!-- diffelens-actions: dismiss=reply "/dismiss {reason}", resolve=click "Resolve conversation" -->`);
 
   return lines.join("\n").trimEnd();
 }

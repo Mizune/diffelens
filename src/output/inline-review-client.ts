@@ -2,7 +2,7 @@ import type { ReviewState } from "../state/review-state.js";
 import type { OutputConfig } from "../config.js";
 import { getOctokit, parseRepo } from "./github-client.js";
 import {
-  FINDING_ID_PATTERN,
+  extractFindingIdFromBody,
   selectFindingsForInline,
   buildReviewComments,
   countOverflow,
@@ -72,13 +72,9 @@ export async function submitInlineReview(
     });
 
     for (const comment of reviewComments) {
-      const match = comment.body?.match(FINDING_ID_PATTERN);
-      if (match) {
-        const findingId = match[1];
-        // Keep first match (newest) — skip if already mapped
-        if (selected.some((f) => f.id === findingId) && !(findingId in postedComments)) {
-          postedComments[findingId] = comment.id;
-        }
+      const findingId = extractFindingIdFromBody(comment.body ?? "");
+      if (findingId && selected.some((f) => f.id === findingId) && !(findingId in postedComments)) {
+        postedComments[findingId] = comment.id;
       }
     }
 
