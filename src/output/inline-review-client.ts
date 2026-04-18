@@ -45,7 +45,7 @@ export async function submitInlineReview(
   }
 
   try {
-    await octokit.pulls.createReview({
+    const { data: review } = await octokit.pulls.createReview({
       owner,
       repo,
       pull_number: prNumber,
@@ -55,25 +55,21 @@ export async function submitInlineReview(
       comments,
     });
 
-    // Map finding IDs back to posted comment IDs.
-    // GitHub's createReview doesn't return individual comment IDs, so we
-    // fetch recent review comments and reverse-match via the **[id]** pattern
-    // embedded in each comment body. Sorted DESC so the newest (just-posted)
-    // comment wins if duplicates exist for the same finding ID.
+    // Fetch only the comments belonging to the review we just posted,
+    // avoiding pagination issues with per_page: 100 on the full PR.
     const postedComments: Record<string, number> = {};
 
-    const { data: reviewComments } = await octokit.pulls.listReviewComments({
+    const { data: reviewComments } = await octokit.pulls.listCommentsForReview({
       owner,
       repo,
       pull_number: prNumber,
-      per_page: 100, // GitHub API max per page
-      sort: "created",
-      direction: "desc",
+      review_id: review.id,
+      per_page: 100,
     });
 
     for (const comment of reviewComments) {
       const findingId = extractFindingIdFromBody(comment.body ?? "");
-      if (findingId && selected.some((f) => f.id === findingId) && !(findingId in postedComments)) {
+      if (findingId) {
         postedComments[findingId] = comment.id;
       }
     }
