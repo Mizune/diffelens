@@ -353,7 +353,7 @@ export async function main(options?: RunOptions) {
     process.env.GITHUB_TOKEN &&
     config.output.github.inlineComments
   )
-    ? await postInlineAndMergeState(opts.prNumber, finalState, headSha, diffFiles, config.output)
+    ? await postInlineAndMergeState(opts.prNumber, finalState, headSha, diffFiles, config.output, diff)
     : finalState;
 
   if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
@@ -428,11 +428,12 @@ async function postInlineAndMergeState(
   state: ReviewState,
   headSha: string,
   diffFiles: string[],
-  outputConfig: OutputConfig
+  outputConfig: OutputConfig,
+  diff?: string
 ): Promise<ReviewState> {
   const modifiedFiles = new Set(diffFiles);
   const inlineResult = await submitInlineReview(
-    prNumber, state, headSha, modifiedFiles, outputConfig
+    prNumber, state, headSha, modifiedFiles, outputConfig, diff
   );
 
   if (Object.keys(inlineResult.postedComments).length === 0) return state;

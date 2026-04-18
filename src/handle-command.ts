@@ -5,6 +5,7 @@ import {
   getOctokit,
   parseRepo,
   upsertSummaryComment,
+  loadStateFromComment,
 } from "./output/github-client.js";
 import { checkConvergence } from "./convergence.js";
 import { loadConfig } from "./config.js";
@@ -89,7 +90,11 @@ async function executeDismiss(
   reason: string,
   actor: string
 ): Promise<void> {
-  const state = await loadState(stateDir, prNumber);
+  // Try file state first, then fall back to PR comment state (GitHub mode)
+  let state = await loadState(stateDir, prNumber);
+  if (!state && process.env.GITHUB_TOKEN && prNumber > 0) {
+    state = await loadStateFromComment(prNumber);
+  }
   if (!state) {
     console.error("No review state found.");
     return;

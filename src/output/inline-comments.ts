@@ -73,6 +73,54 @@ export interface InlineReviewResult {
   overflow: number;
 }
 
+/** Line range in the new (right) side of a diff hunk */
+interface DiffLineRange {
+  start: number;
+  end: number;
+}
+
+/**
+ * Parse a unified diff to extract valid line ranges per file (new/right side).
+ * Returns a map of file path → array of valid line ranges.
+ */
+export function parseDiffLineRanges(diff: string): Map<string, DiffLineRange[]> {
+  const result = new Map<string, DiffLineRange[]>();
+  let currentFile: string | null = null;
+
+  for (const line of diff.split("\n")) {
+    const fileMatch = line.match(/^diff --git a\/(.+?) b\/(.+)/);
+    if (fileMatch) {
+      currentFile = fileMatch[2];
+      if (!result.has(currentFile)) {
+        result.set(currentFile, []);
+      }
+      continue;
+    }
+
+    // @@ -oldStart,oldCount +newStart,newCount @@
+    const hunkMatch = line.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/);
+    if (hunkMatch && currentFile) {
+      const start = parseInt(hunkMatch[1], 10);
+      const count = parseInt(hunkMatch[2] ?? "1", 10);
+      result.get(currentFile)!.push({ start, end: start + count - 1 });
+    }
+  }
+
+  return result;
+}
+
+/** Check if a finding's line range falls within any diff hunk for that file */
+function isLineInDiff(
+  file: string,
+  lineStart: number,
+  lineEnd: number,
+  diffRanges: Map<string, DiffLineRange[]>
+): boolean {
+  const ranges = diffRanges.get(file);
+  if (!ranges) return false;
+  return ranges.some((r) => lineEnd >= r.start && lineStart <= r.end);
+}
+
 const SEVERITY_EMOJI: Record<string, string> = {
   blocker: "🔴",
   warning: "🟡",
@@ -90,15 +138,22 @@ const SEVERITY_EMOJI: Record<string, string> = {
 export function selectFindingsForInline(
   state: ReviewState,
   modifiedFiles: Set<string>,
-  config: GitHubOutputConfig
+  config: GitHubOutputConfig,
+  diff?: string
 ): StateFinding[] {
   const allowedSeverities = new Set<string>(config.inlineSeverities);
+  const diffRanges = diff ? parseDiffLineRanges(diff) : null;
 
   const candidates = state.findings.filter(
     (f) => f.status === "open" && allowedSeverities.has(f.severity)
   );
 
   const filtered = candidates.filter((f) => {
+    // Skip findings whose lines are outside the diff (would cause "Line could not be resolved")
+    if (diffRanges && !isLineInDiff(f.file, f.line_start, f.line_end, diffRanges)) {
+      return false;
+    }
+
     // New finding (no inline comment yet) → always post
     if (!f.inline_comment_id) return true;
 

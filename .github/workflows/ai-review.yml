@@ -23,10 +23,28 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Resolve PR metadata first (gh CLI works without checkout)
+      - name: Resolve PR info
+        id: pr
+        run: |
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "base_sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+            echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" \
+              --json baseRefOid,headRefOid \
+              --jq '"base_sha=\(.baseRefOid)\nhead_sha=\(.headRefOid)"' >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+          ref: ${{ steps.pr.outputs.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -45,23 +63,6 @@ jobs:
 
       - name: Install orchestrator dependencies
         run: npm ci
-
-      # Resolve PR metadata (supports both pull_request and workflow_dispatch triggers)
-      - name: Resolve PR info
-        id: pr
-        run: |
-          if [ -n "${{ github.event.pull_request.number }}" ]; then
-            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
-            echo "base_sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
-            echo "head_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
-          else
-            PR_NUMBER="${{ github.event.inputs.pr_number }}"
-            echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
-            gh pr view "$PR_NUMBER" --json baseRefOid,headRefOid \
-              --jq '"base_sha=\(.baseRefOid)\nhead_sha=\(.headRefOid)"' >> "$GITHUB_OUTPUT"
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # Run review (state is persisted in the PR comment)
       - name: Run AI Review

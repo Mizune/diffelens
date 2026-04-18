@@ -24,10 +24,11 @@ export async function submitInlineReview(
   state: ReviewState,
   commitSha: string,
   modifiedFiles: Set<string>,
-  outputConfig: OutputConfig
+  outputConfig: OutputConfig,
+  diff?: string
 ): Promise<InlineReviewResult> {
   const githubConfig = outputConfig.github;
-  const selected = selectFindingsForInline(state, modifiedFiles, githubConfig);
+  const selected = selectFindingsForInline(state, modifiedFiles, githubConfig, diff);
 
   if (selected.length === 0) {
     return { postedComments: {}, overflow: 0 };
