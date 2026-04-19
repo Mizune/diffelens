@@ -58,7 +58,7 @@ function applyDismiss(
   };
 }
 
-/** Update the GitHub summary comment with new state via upsertSummaryComment */
+/** Update the GitHub summary comment with new state (no PR review action — dismiss only updates the comment) */
 async function updateGitHubSummary(
   updatedState: ReviewState,
   prNumber: number
@@ -66,7 +66,9 @@ async function updateGitHubSummary(
   const configPath = process.env.CONFIG_PATH ?? ".diffelens.yaml";
   const config = await loadConfig(configPath);
   const decision = checkConvergence(updatedState, config.convergence);
-  await upsertSummaryComment(prNumber, updatedState, decision, undefined, config.output);
+  // Pass no outputConfig to skip PR review submission (APPROVE/REQUEST_CHANGES).
+  // Dismiss operations should only update the summary comment, not re-submit reviews.
+  await upsertSummaryComment(prNumber, updatedState, decision);
 }
 
 type CommentType = "issue_comment" | "review_comment";
