@@ -38,10 +38,7 @@ export async function submitInlineReview(
   const octokit = getOctokit();
   const { owner, repo } = parseRepo();
 
-  let reviewBody = `🤖 AI Review — ${selected.length} inline comment(s)`;
-  if (overflow > 0) {
-    reviewBody += ` (${overflow} more in summary)`;
-  }
+  const reviewBody = `🤖 AI Review — ${selected.length} inline comment(s)${overflow > 0 ? ` (${overflow} more in summary)` : ""}`;
 
   try {
     const { data: review } = await octokit.pulls.createReview({
