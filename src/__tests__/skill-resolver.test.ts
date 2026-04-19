@@ -96,7 +96,15 @@ function makeConfig(skills: SkillConfig[]): ReviewConfig {
       approve_condition: "zero_blockers",
     },
     filters: { exclude_patterns: [] },
-    output: { github: { autoApprove: false, onIssues: "comment" } },
+    output: {
+      github: {
+        autoApprove: false,
+        onIssues: "comment",
+        inlineComments: false,
+        maxInlineComments: 25,
+        inlineSeverities: ["blocker", "warning"],
+      },
+    },
   };
 }
 

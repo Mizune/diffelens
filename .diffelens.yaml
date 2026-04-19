@@ -54,4 +54,12 @@ convergence:
     - ["blocker", "warning", "nitpick"]   # round 2: all
     - ["blocker", "warning"]              # round 3: drop nitpick
     - ["blocker"]                         # round 4: blocker only
-  approve_condition: "zero_blockers"
+  approve_condition: "zero_blockers_and_warnings"
+
+output:
+  github:
+    auto_approve: true
+    on_issues: "request_changes"
+    inline_comments: true
+    max_inline_comments: 25
+    inline_severities: ["blocker", "warning"]

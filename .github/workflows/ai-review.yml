@@ -3,10 +3,19 @@ name: AI PR Review
 on:
   pull_request:
     types: [opened, synchronize]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to review"
+        required: true
 
 permissions:
   pull-requests: write
   contents: read
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+  cancel-in-progress: true
 
 jobs:
   ai-review:
@@ -14,9 +23,28 @@ jobs:
     timeout-minutes: 15
 
     steps:
+      # Resolve PR metadata first (gh CLI works without checkout)
+      - name: Resolve PR info
+        id: pr
+        run: |
+          if [ -n "${{ github.event.pull_request.number }}" ]; then
+            echo "number=${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
+            echo "base_sha=${{ github.event.pull_request.base.sha }}" >> "$GITHUB_OUTPUT"
+            echo "head_sha=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+            echo "number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+            gh pr view "$PR_NUMBER" --repo "${{ github.repository }}" \
+              --json baseRefOid,headRefOid \
+              --jq '"base_sha=\(.baseRefOid)\nhead_sha=\(.headRefOid)"' >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ steps.pr.outputs.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -45,7 +73,7 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          BASE_SHA: ${{ steps.pr.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
           CONFIG_PATH: ${{ github.workspace }}/.diffelens.yaml

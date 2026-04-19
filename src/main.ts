@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { join } from "path";
 import { existsSync, realpathSync } from "fs";
+import { writeFile } from "fs/promises";
 import { fileURLToPath } from "url";
 import { loadConfig, loadConfigWithFallback, loadConfigWithLocalOverlay, LOCAL_CONFIG_FILENAME } from "./config.js";
 import { runLens, type LensRunResult } from "./lens-runner.js";
@@ -11,6 +12,7 @@ import {
   updateState,
   saveState,
   applyRecurrenceSuppressions,
+  buildInlineCommentMap,
 } from "./state/review-state.js";
 import { deduplicateFindings } from "./deduplicator.js";
 import { detectAndSuppressRecurrences } from "./recurrence.js";
@@ -23,6 +25,10 @@ import {
   postEscalationComment,
   loadStateFromComment,
 } from "./output/github-client.js";
+import {
+  submitInlineReview,
+  fetchResolvedThreads,
+} from "./output/inline-review-client.js";
 import { checkAvailability, type Finding } from "./adapters/index.js";
 import { filterDiffByExcludePatterns } from "./filters.js";
 import { resolveOptions, type RunOptions } from "./options.js";
@@ -32,6 +38,8 @@ import { resolvePrompt, resolveSkillPromptPath, validatePrompts, validateSkillPr
 import { resolveSkills, skillRunName } from "./skill-resolver.js";
 import { injectSkillContent } from "./skill-prompt-injector.js";
 import type { ReviewScope, LensStat } from "./output/summary-renderer.js";
+import type { ReviewState } from "./state/review-state.js";
+import type { OutputConfig } from "./config.js";
 
 // ============================================================
 // AI PR Review Orchestrator
@@ -98,6 +106,7 @@ export async function main(options?: RunOptions) {
   // 3. Fetch diff + apply exclude_patterns filter
   console.log("Fetching diff...");
   const rawDiff = fetchDiff(opts);
+  const totalDiffFiles = parseDiffFiles(rawDiff).length;
   const diff = filterDiffByExcludePatterns(rawDiff, config.filters.exclude_patterns);
   console.log(`  Diff size: ${rawDiff.length} -> ${diff.length} chars (after exclude filter)\n`);
 
@@ -148,6 +157,17 @@ export async function main(options?: RunOptions) {
       config.global.max_rounds
     );
   }
+  // 4a. Detect resolved inline comment threads (GitHub mode only)
+  const inlineCommentMap = buildInlineCommentMap(state.findings);
+  if (
+    opts.mode === "github" &&
+    process.env.GITHUB_TOKEN &&
+    config.output.github.inlineComments &&
+    Object.keys(inlineCommentMap).length > 0
+  ) {
+    state = await reconcileResolvedThreads(state, opts.prNumber, inlineCommentMap);
+  }
+
   console.log(`Round: ${state.current_round}/${state.max_rounds}`);
   console.log(
     `  Previous findings: ${state.findings.length} (open: ${state.findings.filter((f) => f.status === "open").length})\n`
@@ -322,27 +342,110 @@ export async function main(options?: RunOptions) {
   const scope: ReviewScope = {
     diffStats: parseDiffStats(diff),
     diffFiles,
+    totalDiffFiles,
     changeSummary,
     lensStats,
   };
 
   // 16. Output: GitHub API for github mode with token, stdout otherwise
+  const outputState = (
+    opts.mode === "github" &&
+    process.env.GITHUB_TOKEN &&
+    config.output.github.inlineComments
+  )
+    ? await postInlineAndMergeState(opts.prNumber, finalState, headSha, diffFiles, config.output, diff)
+    : finalState;
+
   if (opts.mode === "github" && process.env.GITHUB_TOKEN) {
-    await upsertSummaryComment(opts.prNumber, finalState, decision, scope, config.output);
+    await upsertSummaryComment(opts.prNumber, outputState, decision, scope, config.output);
   } else {
     const { renderSummary } = await import(
       "./output/summary-renderer.js"
     );
+    const summary = renderSummary(outputState, decision, opts.mode, scope);
     console.log("\n--- Summary ---");
-    console.log(renderSummary(finalState, decision, opts.mode, scope));
+    console.log(summary);
+
+    if (opts.outputFile) {
+      try {
+        await writeFile(opts.outputFile, summary, "utf-8");
+        console.log(`\n  Summary written to ${opts.outputFile}`);
+      } catch (e) {
+        console.warn(`  Could not write summary to ${opts.outputFile}: ${e}`);
+      }
+    }
   }
 
   // 17. Save state (local mode only; GitHub mode persists via comment)
   if (opts.mode === "local") {
-    await saveState(opts.stateDir, finalState);
+    await saveState(opts.stateDir, outputState);
   }
 
   console.log("\nAI Review — Done.");
+}
+
+// ============================================================
+// Helpers extracted from orchestrator for readability
+// ============================================================
+
+/** Reconcile resolved GitHub review threads with finding state */
+async function reconcileResolvedThreads(
+  state: ReviewState,
+  prNumber: number,
+  commentMap: Record<string, number>
+): Promise<ReviewState> {
+  const resolvedIds = await fetchResolvedThreads(prNumber);
+  if (resolvedIds.size === 0) return state;
+
+  let resolvedCount = 0;
+  const updatedFindings = state.findings.map((f) => {
+    if (f.status !== "open") return f;
+    const commentId = commentMap[f.id];
+    if (commentId && resolvedIds.has(commentId)) {
+      resolvedCount++;
+      return {
+        ...f,
+        status: "addressed" as const,
+        resolution_note: "Resolved by reviewer",
+      };
+    }
+    return f;
+  });
+
+  if (resolvedCount === 0) return state;
+
+  console.log(`  Resolved threads detected: ${resolvedCount} finding(s) marked as addressed`);
+  return {
+    ...state,
+    findings: updatedFindings,
+    decisions: [...state.decisions, `${resolvedCount} finding(s) resolved by reviewer`],
+  };
+}
+
+/** Post inline review comments and merge comment IDs back into state */
+async function postInlineAndMergeState(
+  prNumber: number,
+  state: ReviewState,
+  headSha: string,
+  diffFiles: string[],
+  outputConfig: OutputConfig,
+  diff?: string
+): Promise<ReviewState> {
+  const modifiedFiles = new Set(diffFiles);
+  const inlineResult = await submitInlineReview(
+    prNumber, state, headSha, modifiedFiles, outputConfig, diff
+  );
+
+  if (Object.keys(inlineResult.postedComments).length === 0) return state;
+
+  return {
+    ...state,
+    last_inline_review_sha: headSha,
+    findings: state.findings.map((f) => {
+      const commentId = inlineResult.postedComments[f.id];
+      return commentId ? { ...f, inline_comment_id: commentId } : f;
+    }),
+  };
 }
 
 // In ESM, use import.meta.url to determine if this is the entry point.

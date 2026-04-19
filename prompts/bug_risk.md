@@ -56,7 +56,9 @@ Do NOT wrap in code fences. Return pure JSON only.
       "category": "null_safety",
       "summary": "Description of the issue",
       "suggestion": "Specific improvement suggestion",
-      "scenario": "Under what conditions the bug would occur"
+      "scenario": "Under what conditions the bug would occur",
+      "evidence": "Brief explanation of why this was flagged (e.g., type definition found, missing guard observed)",
+      "suggestion_diff": "Exact replacement code for the lines (optional, only for simple/obvious fixes)"
     }
   ],
   "explored_files": ["list of files the agent referenced"],

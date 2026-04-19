@@ -22,6 +22,8 @@ export interface LensStat {
 export interface ReviewScope {
   diffStats: DiffStats;
   diffFiles: string[];
+  /** Total files before exclude_patterns filter (for coverage display) */
+  totalDiffFiles?: number;
   changeSummary: string | null;
   lensStats: LensStat[];
 }
@@ -47,8 +49,19 @@ export function renderSummary(
 
   const suppressionCount = state.recurrence_suppressions?.length ?? 0;
 
+  const meta = {
+    decision,
+    round: state.current_round,
+    max_rounds: state.max_rounds,
+    blockers: blockers.length,
+    warnings: warnings.length,
+    nitpicks: nitpicks.length,
+    resolved: resolved.length,
+  };
+
   const lines: string[] = [
     MARKER,
+    `<!-- diffelens-meta: ${JSON.stringify(meta)} -->`,
     `## 🤖 AI Review — Round ${state.current_round}/${state.max_rounds}`,
     "",
     `**${decisionEmoji}**`,
@@ -74,11 +87,21 @@ export function renderSummary(
     lines.push(...renderScope(scope));
   }
 
+  // Round history (collapsible, show if more than 1 round)
+  if (state.round_history.length > 0) {
+    lines.push(...renderRoundHistory(state));
+  }
+
+  // Human action log
+  if (state.decisions.length > 0) {
+    lines.push(...renderDecisions(state.decisions));
+  }
+
   // Blockers
   if (blockers.length > 0) {
     lines.push("---", "", "### 🔴 Blockers", "");
     for (const f of blockers) {
-      lines.push(...renderFinding(f, state.current_round));
+      lines.push(...renderFinding(f, state.current_round, mode));
     }
   }
 
@@ -92,7 +115,7 @@ export function renderSummary(
       ""
     );
     for (const f of warnings) {
-      lines.push(...renderFinding(f, state.current_round));
+      lines.push(...renderFinding(f, state.current_round, mode));
     }
     lines.push("</details>", "");
   }
@@ -107,7 +130,7 @@ export function renderSummary(
       ""
     );
     for (const f of nitpicks) {
-      lines.push(...renderFinding(f, state.current_round));
+      lines.push(...renderFinding(f, state.current_round, mode));
     }
     lines.push("</details>", "");
   }
@@ -136,6 +159,8 @@ export function renderSummary(
     lines.push(
       "---",
       "<sub>",
+      `💬 Dismiss: <code>npx tsx src/handle-command.ts dismiss {id} {reason}</code>`,
+      "<br>",
       `🔄 Re-run to check convergence after fixing issues`,
       "</sub>"
     );
@@ -178,6 +203,15 @@ function renderScope(scope: ReviewScope): string[] {
     `<details><summary>📋 ${summaryText}</summary>`,
     "",
   ];
+
+  // Coverage note (how many files were excluded by filters)
+  if (scope.totalDiffFiles != null && scope.totalDiffFiles > diffFiles.length) {
+    const excluded = scope.totalDiffFiles - diffFiles.length;
+    lines.push(
+      `> **Coverage**: ${diffFiles.length}/${scope.totalDiffFiles} changed files reviewed (${excluded} excluded by filters)`,
+      "",
+    );
+  }
 
   // Change summary (from LLM, best effort)
   if (changeSummary) {
@@ -251,7 +285,11 @@ function formatDuration(ms: number): string {
   return `${(ms / 1000).toFixed(1)}s`;
 }
 
-function renderFinding(f: StateFinding, currentRound: number): string[] {
+function renderFinding(
+  f: StateFinding,
+  currentRound: number,
+  mode: "github" | "local" = "github"
+): string[] {
   const lines: string[] = [];
   const lineRef =
     f.line_start === f.line_end
@@ -266,6 +304,11 @@ function renderFinding(f: StateFinding, currentRound: number): string[] {
     lines.push(`  > 💡 ${f.suggestion}`);
   }
 
+  // Evidence: shown inline in local mode (no inline comments available)
+  if (mode === "local" && f.evidence) {
+    lines.push(`  > 🔎 ${f.evidence}`);
+  }
+
   const lensLabel = f.lens ?? "unknown";
   const roundLabel =
     f.first_raised_round < currentRound
@@ -275,6 +318,45 @@ function renderFinding(f: StateFinding, currentRound: number): string[] {
   lines.push(`  > 🔍 Lens: \`${lensLabel}\` / ${roundLabel}`);
   lines.push("");
 
+  return lines;
+}
+
+function renderRoundHistory(state: ReviewState): string[] {
+  const lines: string[] = [
+    `<details><summary>📊 Round History (${state.round_history.length})</summary>`,
+    "",
+    "| Round | SHA | Opened | Resolved |",
+    "|-------|-----|--------|----------|",
+  ];
+
+  for (const rh of state.round_history) {
+    const sha = rh.head_sha.slice(0, 7);
+    const opened = rh.findings_opened.length > 0
+      ? rh.findings_opened.join(", ")
+      : "—";
+    const resolved = rh.findings_resolved.length > 0
+      ? rh.findings_resolved.join(", ")
+      : "—";
+    lines.push(`| ${rh.round} | ${sha} | ${opened} | ${resolved} |`);
+  }
+
+  lines.push("", "</details>", "");
+  return lines;
+}
+
+function renderDecisions(decisions: string[]): string[] {
+  if (decisions.length === 0) return [];
+
+  const lines: string[] = [
+    `<details><summary>👤 Human Actions (${decisions.length})</summary>`,
+    "",
+  ];
+
+  for (const d of decisions) {
+    lines.push(`- ${d}`);
+  }
+
+  lines.push("", "</details>", "");
   return lines;
 }
 

@@ -20,6 +20,8 @@ export interface RunOptions {
   diffTarget: DiffTarget;
   cliBase: string | undefined;
   cliHead: string | undefined;
+  /** File path to write Markdown summary (local mode, optional) */
+  outputFile: string | undefined;
 }
 
 // Reject shell metacharacters to prevent command injection
@@ -40,6 +42,7 @@ export function resolveOptions(): RunOptions {
 
   const cliBase = parseArg(args, "--base");
   const cliHead = parseArg(args, "--head");
+  const outputFile = parseArg(args, "--output");
 
   if (cliBase !== undefined && !validateGitRef(cliBase)) {
     console.error(`Invalid git ref for --base: "${cliBase}"`);
@@ -71,6 +74,7 @@ export function resolveOptions(): RunOptions {
       diffTarget,
       cliBase,
       cliHead,
+      outputFile,
     };
   }
 
@@ -87,6 +91,7 @@ export function resolveOptions(): RunOptions {
     diffTarget,
     cliBase,
     cliHead,
+    outputFile,
   };
 }
 

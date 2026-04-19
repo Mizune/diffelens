@@ -14,6 +14,8 @@ export interface StateFinding extends Finding {
   first_raised_round: number;
   last_evaluated_round: number;
   resolution_note: string | null;
+  /** GitHub review comment ID (if posted as inline comment) */
+  inline_comment_id?: number;
 }
 
 export interface RoundHistory {
@@ -47,6 +49,8 @@ export interface ReviewState {
   round_history: RoundHistory[];
   decisions: string[];
   recurrence_suppressions?: RecurrenceSuppression[];
+  /** Commit SHA when inline comments were last posted */
+  last_inline_review_sha?: string;
 }
 
 function stateFilePath(stateDir: string, stateKey: string): string {
@@ -103,7 +107,7 @@ export function createInitialState(
   maxRounds: number
 ): ReviewState {
   return {
-    schema_version: "1.0",
+    schema_version: "1.1",
     pr_number: prNumber,
     repository: process.env.GITHUB_REPOSITORY ?? "unknown",
     current_round: 1,
@@ -239,6 +243,19 @@ export function linesOverlap(
 export function generateFindingId(lens: string, index: number): string {
   const prefix = lens.charAt(0); // r, s, b
   return `${prefix}-${String(index + 1).padStart(3, "0")}`;
+}
+
+/** Derive findingId → inline comment ID map from findings (single source of truth) */
+export function buildInlineCommentMap(
+  findings: readonly StateFinding[]
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const f of findings) {
+    if (f.inline_comment_id != null) {
+      map[f.id] = f.inline_comment_id;
+    }
+  }
+  return map;
 }
 
 /** Merge recurrence suppression history into state (immutable, deduped by originalFindingId) */
