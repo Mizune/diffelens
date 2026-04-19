@@ -135,12 +135,17 @@ const SEVERITY_EMOJI: Record<string, string> = {
  * - File NOT modified + finding already has inline comment → skip (still valid)
  * - New finding → post
  */
+export interface InlineSelection {
+  findings: StateFinding[];
+  overflow: number;
+}
+
 export function selectFindingsForInline(
   state: ReviewState,
   modifiedFiles: Set<string>,
   config: GitHubOutputConfig,
   diff?: string
-): StateFinding[] {
+): InlineSelection {
   const allowedSeverities = new Set<string>(config.inlineSeverities);
   const diffRanges = diff ? parseDiffLineRanges(diff) : null;
 
@@ -173,8 +178,12 @@ export function selectFindingsForInline(
     return a.line_start - b.line_start;
   });
 
-  // Apply max limit
-  return sorted.slice(0, config.maxInlineComments);
+  // Apply max limit; overflow is computed from the same filtered set
+  const selected = sorted.slice(0, config.maxInlineComments);
+  return {
+    findings: selected,
+    overflow: Math.max(0, filtered.length - selected.length),
+  };
 }
 
 /** Build the ReviewComment array for octokit.pulls.createReview */
@@ -236,17 +245,3 @@ export function formatInlineBody(f: StateFinding): string {
   return lines.join("\n").trimEnd();
 }
 
-/**
- * Count how many findings were filtered out by the max limit.
- */
-export function countOverflow(
-  state: ReviewState,
-  posted: StateFinding[],
-  config: GitHubOutputConfig
-): number {
-  const allowedSeverities = new Set<string>(config.inlineSeverities);
-  const total = state.findings.filter(
-    (f) => f.status === "open" && allowedSeverities.has(f.severity)
-  ).length;
-  return Math.max(0, total - posted.length);
-}

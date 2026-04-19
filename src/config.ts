@@ -390,7 +390,7 @@ function normalizeOutput(raw?: RawOutputConfig): OutputConfig {
       autoApprove: raw.github?.auto_approve ?? false,
       onIssues,
       inlineComments: raw.github?.inline_comments ?? false,
-      maxInlineComments: raw.github?.max_inline_comments ?? 25,
+      maxInlineComments: raw.github?.max_inline_comments ?? DEFAULT_MAX_INLINE_COMMENTS,
       inlineSeverities,
     },
   };

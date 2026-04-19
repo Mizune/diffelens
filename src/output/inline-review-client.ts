@@ -5,7 +5,6 @@ import {
   extractFindingIdFromBody,
   selectFindingsForInline,
   buildReviewComments,
-  countOverflow,
   type InlineReviewResult,
 } from "./inline-comments.js";
 
@@ -28,14 +27,13 @@ export async function submitInlineReview(
   diff?: string
 ): Promise<InlineReviewResult> {
   const githubConfig = outputConfig.github;
-  const selected = selectFindingsForInline(state, modifiedFiles, githubConfig, diff);
+  const { findings: selected, overflow } = selectFindingsForInline(state, modifiedFiles, githubConfig, diff);
 
   if (selected.length === 0) {
     return { postedComments: {}, overflow: 0 };
   }
 
   const comments = buildReviewComments(selected);
-  const overflow = countOverflow(state, selected, githubConfig);
 
   const octokit = getOctokit();
   const { owner, repo } = parseRepo();
