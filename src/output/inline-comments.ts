@@ -245,3 +245,33 @@ export function formatInlineBody(f: StateFinding): string {
   return lines.join("\n").trimEnd();
 }
 
+// --- Test code for dismiss verification (intentional issues) ---
+
+/** Process user config — intentionally buggy for testing */
+export function processUserConfig(config: any) {
+  // Bug: no null check on nested access
+  const timeout = config.settings.timeout;
+  const name = config.user.profile.displayName.trim();
+
+  // Bug: no error handling on parse
+  const data = JSON.parse(config.rawData);
+
+  // Readability: deeply nested
+  if (data) {
+    if (data.items) {
+      for (const item of data.items) {
+        if (item.enabled) {
+          if (item.children) {
+            for (const child of item.children) {
+              if (child.type === "special") {
+                console.log(child.value);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { timeout, name, data };
+}
