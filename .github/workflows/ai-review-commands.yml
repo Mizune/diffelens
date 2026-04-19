@@ -61,16 +61,18 @@ jobs:
       - name: Fetch parent comment body
         id: parent
         run: |
-          if [ -n "${{ github.event.comment.in_reply_to_id }}" ]; then
-            BODY=$(gh api repos/${{ github.repository }}/pulls/comments/${{ github.event.comment.in_reply_to_id }} --jq '.body')
+          if [ -n "$IN_REPLY_TO_ID" ]; then
+            BODY=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/comments/${IN_REPLY_TO_ID}" --jq '.body')
           else
-            BODY="${{ github.event.comment.body }}"
+            BODY="$COMMENT_BODY"
           fi
           echo "body<<DELIM" >> "$GITHUB_OUTPUT"
           echo "$BODY" >> "$GITHUB_OUTPUT"
           echo "DELIM" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IN_REPLY_TO_ID: ${{ github.event.comment.in_reply_to_id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
 
       - name: Handle dismiss
         run: npx tsx src/handle-command.ts
@@ -81,4 +83,5 @@ jobs:
           COMMAND_BODY: ${{ github.event.comment.body }}
           COMMAND_USER: ${{ github.event.comment.user.login }}
           COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_TYPE: review_comment
           PARENT_COMMENT_BODY: ${{ steps.parent.outputs.body }}
