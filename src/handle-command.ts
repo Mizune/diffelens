@@ -69,17 +69,18 @@ async function updateGitHubSummary(
   await upsertSummaryComment(prNumber, updatedState, decision, undefined, config.output);
 }
 
-/** React to a comment with +1 */
-async function reactToComment(commentId: number): Promise<void> {
+type CommentType = "issue_comment" | "review_comment";
+
+/** React to a comment with +1 (supports both issue and review comments) */
+async function reactToComment(commentId: number, commentType: CommentType = "issue_comment"): Promise<void> {
   if (!commentId) return;
   const octokit = getOctokit();
   const { owner, repo } = parseRepo();
-  await octokit.reactions.createForIssueComment({
-    owner,
-    repo,
-    comment_id: commentId,
-    content: "+1",
-  }).catch(() => {});
+  const createReaction = commentType === "review_comment"
+    ? octokit.reactions.createForPullRequestReviewComment
+    : octokit.reactions.createForIssueComment;
+  // Best-effort: reaction is non-critical
+  await createReaction({ owner, repo, comment_id: commentId, content: "+1" }).catch(() => {});
 }
 
 /** Load state, apply dismiss, save, and optionally update GitHub */
@@ -108,7 +109,8 @@ async function executeDismiss(
   if (process.env.GITHUB_TOKEN) {
     await updateGitHubSummary(updatedState, prNumber);
     const commentId = parseInt(process.env.COMMENT_ID ?? "0") || 0;
-    await reactToComment(commentId);
+    const commentType: CommentType = process.env.COMMENT_TYPE === "review_comment" ? "review_comment" : "issue_comment";
+    await reactToComment(commentId, commentType);
   }
 
   console.log(`Done. Finding ${findingId} marked as wontfix.`);
